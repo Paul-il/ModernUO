@@ -44,8 +44,19 @@ public abstract class Poison : ISpanParsable<Poison>
         PoisonsByName.Add(regName, reg);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Poison GetPoisonByIndex(int index) => index >= 0 && index < Poisons.Count ? Poisons[index] : null;
+    public static Poison GetPoisonByIndex(int index)
+    {
+        for (var i = 0; i < Poisons.Count; i++)
+        {
+            var poison = Poisons[i];
+            if (poison.Index == index)
+            {
+                return poison;
+            }
+        }
+
+        return null;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Poison IncreaseLevel(Poison oldPoison) =>

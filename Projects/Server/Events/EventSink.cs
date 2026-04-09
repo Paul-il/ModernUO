@@ -14,13 +14,32 @@
  *************************************************************************/
 
 using System;
+using Server.Network;
 
 namespace Server;
 
 public static partial class EventSink
 {
+    public static event Action<Mobile> OpenDoorMacroUsed;
+    public static void InvokeOpenDoorMacroUsed(Mobile m) => OpenDoorMacroUsed?.Invoke(m);
+
+    public static event Action<Mobile> Login;
+    public static void InvokeLogin(Mobile m) => Login?.Invoke(m);
+
     public static event Action Shutdown;
     public static void InvokeShutdown() => Shutdown?.Invoke();
+
+    public static event Action<Mobile> HelpRequest;
+    public static void InvokeHelpRequest(Mobile m) => HelpRequest?.Invoke(m);
+
+    public static event Action<Mobile, string> AnimateRequest;
+    public static void InvokeAnimateRequest(Mobile m, string action) => AnimateRequest?.Invoke(m, action);
+
+    public static event Action<Mobile, int> OpenSpellbookRequest;
+    public static void InvokeOpenSpellbookRequest(Mobile m, int type) => OpenSpellbookRequest?.Invoke(m, type);
+
+    public static event Action<Mobile, int, Item> CastSpellRequest;
+    public static void InvokeCastSpellRequest(Mobile m, int spellID, Item book) => CastSpellRequest?.Invoke(m, spellID, book);
 
     public static event Action<Mobile> Logout;
     public static void InvokeLogout(Mobile m) => Logout?.Invoke(m);
@@ -34,10 +53,46 @@ public static partial class EventSink
     public static event Action<Mobile> Disconnected;
     public static void InvokeDisconnected(Mobile m) => Disconnected?.Invoke(m);
 
+    public static event Action<Mobile> PlayerDeath;
+    public static void InvokePlayerDeath(Mobile m) => PlayerDeath?.Invoke(m);
+
+    public static event Action<Mobile, Mobile, string> RenameRequest;
+    public static void InvokeRenameRequest(Mobile from, Mobile target, string name) => RenameRequest?.Invoke(from, target, name);
+
     public static event Action<Mobile, Mobile> PaperdollRequest;
 
     public static void InvokePaperdollRequest(Mobile beholder, Mobile beheld) =>
         PaperdollRequest?.Invoke(beholder, beheld);
+
+    public static event Action<Mobile, Mobile> ProfileRequest;
+    public static void InvokeProfileRequest(Mobile beholder, Mobile beheld) => ProfileRequest?.Invoke(beholder, beheld);
+
+    public static event Action<Mobile, Mobile> VirtueGumpRequest;
+    public static void InvokeVirtueGumpRequest(Mobile beholder, Mobile beheld) =>
+        VirtueGumpRequest?.Invoke(beholder, beheld);
+
+    public static event Action<Mobile, Mobile, int> VirtueItemRequest;
+    public static void InvokeVirtueItemRequest(Mobile beholder, Mobile beheld, int gumpID) =>
+        VirtueItemRequest?.Invoke(beholder, beheld, gumpID);
+
+    public static event Action<Mobile, int> VirtueMacroRequest;
+    public static void InvokeVirtueMacroRequest(Mobile mobile, int virtueID) =>
+        VirtueMacroRequest?.Invoke(mobile, virtueID);
+
+    public static event Action<Mobile, Mobile, string> ChangeProfileRequest;
+    public static void InvokeChangeProfileRequest(Mobile beholder, Mobile beheld, string text) =>
+        ChangeProfileRequest?.Invoke(beholder, beheld, text);
+
+    public static event Action<NetState, ClientVersion> ClientVersionReceived;
+    public static void InvokeClientVersionReceived(NetState state, ClientVersion version) =>
+        ClientVersionReceived?.Invoke(state, version);
+
+    public static event Action<Mobile> QuestGumpRequest;
+    public static void InvokeQuestGumpRequest(Mobile m) => QuestGumpRequest?.Invoke(m);
+
+    public static event Action<Mobile, IEntity, int> TargetedSkillUse;
+    public static void InvokeTargetedSkillUse(Mobile m, IEntity target, int skillId) =>
+        TargetedSkillUse?.Invoke(m, target, skillId);
 
     public static event Action ServerStarted;
     public static void InvokeServerStarted() => ServerStarted?.Invoke();

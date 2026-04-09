@@ -34,9 +34,9 @@ public static class IncomingMobilePackets
         var from = state.Mobile;
         var targ = World.FindMobile((Serial)reader.ReadUInt32());
 
-        if (targ != null)
+        if (from != null && targ != null)
         {
-            RenameRequests.RenameRequest(from, targ, reader.ReadLatin1Safe());
+            EventSink.InvokeRenameRequest(from, targ, reader.ReadLatin1Safe());
         }
     }
 
@@ -67,7 +67,10 @@ public static class IncomingMobilePackets
         {
             case 0x00: // display request
                 {
-                    Profile.ProfileRequest(beholder, beheld);
+                    if (beholder != null)
+                    {
+                        EventSink.InvokeProfileRequest(beholder, beheld);
+                    }
 
                     break;
                 }
@@ -83,7 +86,10 @@ public static class IncomingMobilePackets
 
                     var text = reader.ReadBigUni(length);
 
-                    Profile.ChangeProfileRequest(beholder, beheld, text);
+                    if (beholder != null)
+                    {
+                        EventSink.InvokeChangeProfileRequest(beholder, beheld, text);
+                    }
 
                     break;
                 }

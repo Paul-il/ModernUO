@@ -16,6 +16,8 @@
 using System;
 using System.IO;
 using System.Buffers;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Server.Accounting;
 
@@ -322,6 +324,12 @@ public static class OutgoingAccountPackets
             count = 5;
         }
 
+        var serializedNames = new string[count];
+        var occupiedSlotIndices = new int[count];
+        var occupiedSlotSerials = new int[count];
+        var occupiedSlotNames = new string[count];
+        var occupiedCount = 0;
+
         var length = (client70130 ?
             11 + (textLength * 2 + 25) * cityInfo.Length :
             9 + (textLength * 2 +  1) * cityInfo.Length) + count * 60;
@@ -336,11 +344,17 @@ public static class OutgoingAccountPackets
 
             if (m == null)
             {
+                serializedNames[i] = string.Empty;
                 writer.Clear(60);
             }
             else
             {
                 var name = (m.RawName?.Trim()).DefaultIfNullOrEmpty("-no name-");
+                serializedNames[i] = name;
+                occupiedSlotIndices[occupiedCount] = i;
+                occupiedSlotSerials[occupiedCount] = unchecked((int)m.Serial.Value);
+                occupiedSlotNames[occupiedCount] = name;
+                occupiedCount++;
                 writer.WriteLatin1(name, 30);
                 writer.Clear(30); // password
             }
@@ -389,7 +403,69 @@ public static class OutgoingAccountPackets
             writer.Write((short)-1);
         }
 
+        TryWriteLifecycleCharacterListProof(
+            acct,
+            highSlot,
+            count,
+            cityInfo.Length,
+            serializedNames,
+            occupiedSlotIndices,
+            occupiedSlotSerials,
+            occupiedSlotNames,
+            occupiedCount,
+            writer.Span.ToArray(),
+            (int)flags,
+            client70130
+        );
+
         ns.Send(writer.Span);
+    }
+
+    private static void TryWriteLifecycleCharacterListProof(
+        IAccount acct,
+        int highSlot,
+        int count,
+        int cityCount,
+        string[] serializedNames,
+        int[] occupiedSlotIndices,
+        int[] occupiedSlotSerials,
+        string[] occupiedSlotNames,
+        int occupiedCount,
+        byte[] serializedPacket,
+        int flags,
+        bool client70130
+    )
+    {
+        try
+        {
+            var patchAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, "UpgradeParityPatches", StringComparison.OrdinalIgnoreCase));
+            var patchType = patchAssembly?.GetType("UpgradeParityPatches.LifecycleProofPatch", throwOnError: false, ignoreCase: false);
+            var method = patchType?.GetMethod("WriteCharacterListProof", BindingFlags.Public | BindingFlags.Static);
+
+            method?.Invoke(
+                null,
+                [
+                    acct.Username ?? string.Empty,
+                    acct.Limit,
+                    acct.Length,
+                    highSlot,
+                    count,
+                    cityCount,
+                    serializedNames,
+                    occupiedSlotIndices[..occupiedCount],
+                    occupiedSlotSerials[..occupiedCount],
+                    occupiedSlotNames[..occupiedCount],
+                    serializedPacket ?? Array.Empty<byte>(),
+                    flags,
+                    client70130
+                ]
+            );
+        }
+        catch
+        {
+            // Lifecycle proof is diagnostic only and must never break the real char-list path.
+        }
     }
 
     /**

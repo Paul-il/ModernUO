@@ -31,7 +31,12 @@ public static class NPCSpeeds
         if ((bc.SpeedClass == SpeedLevel.None || !_speedsByLevel.TryGetValue(bc.SpeedClass, out var sp)) &&
             !_speedsByType.TryGetValue(bc.GetType(), out sp))
         {
-            sp = _speedsByLevel[SpeedLevel.Medium];
+            if (!_speedsByLevel.TryGetValue(SpeedLevel.Medium, out sp))
+            {
+                activeSpeed = 0.2;
+                passiveSpeed = 0.4;
+                return;
+            }
         }
 
         activeSpeed = sp.ActiveSpeed;

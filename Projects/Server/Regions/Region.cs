@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Server.Collections;
 using Server.Json;
@@ -175,6 +176,49 @@ public class Region : IComparable<Region>, IValueLinkListNode<Region>
             ChildLevel = Parent.ChildLevel + 1;
             Priority = Parent.Priority;
         }
+    }
+
+    public Region(DynamicJson json, JsonSerializerOptions options)
+    {
+        Map = json.GetProperty("map", options, out Map map) ? map : null;
+        Parent = json.GetProperty("parent", options, out string parent) ? Find(parent, Map) : null;
+        Name = json.GetProperty("name", options, out string name) ? name : null;
+
+        Dynamic = false;
+
+        if (Parent == null)
+        {
+            ChildLevel = 0;
+            Priority = DefaultPriority;
+        }
+        else
+        {
+            ChildLevel = Parent.ChildLevel + 1;
+            Priority = Parent.Priority;
+        }
+
+        Priority = json.GetProperty("priority", options, out int priority) ? priority : Priority;
+
+        Area = json.GetProperty("rects", options, out List<Rectangle3D> rects)
+            ? rects.ToArray()
+            : Array.Empty<Rectangle3D>();
+
+        if (json.GetProperty("go", options, out Point3D go))
+        {
+            GoLocation = go;
+        }
+        else if (Area.Length > 0)
+        {
+            var start = Area[0].Start;
+            var end = Area[0].End;
+
+            var x = start.X + (end.X - start.X) / 2;
+            var y = start.Y + (end.Y - start.Y) / 2;
+
+            GoLocation = new Point3D(x, y, Map?.GetAverageZ(x, y) ?? start.Z + (end.Z - start.Z) / 2);
+        }
+
+        Music = json.GetEnumProperty("music", options, out MusicName music) ? music : DefaultMusic;
     }
 
     // Sectors

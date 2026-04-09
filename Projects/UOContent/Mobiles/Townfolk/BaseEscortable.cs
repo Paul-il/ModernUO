@@ -883,7 +883,7 @@ public class EscortDestinationInfo
 
         if (!validTown)
         {
-            logger.Error("No valid escort destinations found. Please check {TownNames}.", townNamesVariable);
+            logger.Warning("No valid escort destinations found. Please check {TownNames}.", townNamesVariable);
         }
     }
 

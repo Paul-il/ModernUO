@@ -150,6 +150,7 @@ public class CommandInfoSorter : IComparer<CommandInfo>
 public static class CommandSystem
 {
     private static readonly ILogger logger = LogFactory.GetLogger(typeof(CommandSystem));
+    public static event Action RegistrationsChanged;
 
     public static string Prefix { get; set; } = "[";
 
@@ -247,11 +248,49 @@ public static class CommandSystem
                 return;
             }
 
-            logger.Warning("Command {Command} already registered to {Handler}.", command, commandEntry.Handler.Method.Name);
+            var existingAssembly = commandEntry.Handler.Method.DeclaringType?.Assembly.GetName().Name;
+            var newAssembly = handler.Method.DeclaringType?.Assembly.GetName().Name;
+
+            // Live Zuluhotel command registration historically used last-write-wins semantics.
+            // Keep that behavior for shard-owned commands while preventing late UOContent
+            // registrations from stealing a command already owned by ZuluContent.
+            if (
+                string.Equals(existingAssembly, "ZuluContent", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(newAssembly, "UOContent", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                logger.Debug(
+                    "Command {Command} kept existing ZuluContent handler {Handler} over UOContent handler {NewHandler}.",
+                    command,
+                    commandEntry.Handler.Method.Name,
+                    handler.Method.Name
+                );
+                return;
+            }
+
+            if (
+                !string.Equals(existingAssembly, newAssembly, StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(existingAssembly, "UOContent", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(newAssembly, "ZuluContent", StringComparison.OrdinalIgnoreCase))
+            )
+            {
+                logger.Debug(
+                    "Command {Command} replaced handler {Handler} ({ExistingAssembly}) with {NewHandler} ({NewAssembly}).",
+                    command,
+                    commandEntry.Handler.Method.Name,
+                    existingAssembly ?? "(unknown)",
+                    handler.Method.Name,
+                    newAssembly ?? "(unknown)"
+                );
+            }
+
+            commandEntry = new CommandEntry(command, handler, accessLevel);
+            RegistrationsChanged?.Invoke();
             return;
         }
 
         commandEntry = new CommandEntry(command, handler, accessLevel);
+        RegistrationsChanged?.Invoke();
     }
 
     public static bool Handle(Mobile from, string text, MessageType type = MessageType.Regular)

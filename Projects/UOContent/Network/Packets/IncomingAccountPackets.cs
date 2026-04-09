@@ -17,6 +17,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using Server.Engines.CharacterCreation;
 using Server.Misc;
 using Server.Mobiles;
@@ -142,7 +143,7 @@ public static class IncomingAccountPackets
 
         state.Flags = (ClientFlags)flags;
 
-        var args = new CharacterCreatedEventArgs(
+        var args = new global::Server.CharacterCreatedEventArgs(
             state,
             a,
             name,
@@ -165,7 +166,7 @@ public static class IncomingAccountPackets
 
         state.BlockAllPackets = true;
 
-        CharacterCreation.CharacterCreatedEvent(args);
+        EventSink.InvokeCharacterCreated(args);
 
         var m = args.Mobile;
 
@@ -187,7 +188,7 @@ public static class IncomingAccountPackets
         reader.Seek(30, SeekOrigin.Current);
         var index = reader.ReadInt32();
 
-        AccountHandler.DeleteRequest(state, index);
+        EventSink.InvokeDeleteRequest(state, index);
     }
 
     public static void ClientVersion(NetState state, SpanReader reader)
@@ -197,7 +198,7 @@ public static class IncomingAccountPackets
         // Record RTT if this is a response to our probe
         state.RecordRttMeasurement();
 
-        ClientVerification.ClientVersionReceived(state, version);
+        EventSink.InvokeClientVersionReceived(state, version);
     }
 
     public static void ClientType(NetState state, SpanReader reader)
@@ -210,7 +211,7 @@ public static class IncomingAccountPackets
         // Record RTT if this is a response to our probe
         state.RecordRttMeasurement();
 
-        ClientVerification.ClientVersionReceived(state, version);
+        EventSink.InvokeClientVersionReceived(state, version);
     }
 
     public static void PlayCharacter(NetState state, SpanReader reader)
@@ -306,9 +307,45 @@ public static class IncomingAccountPackets
 
         state.SendPlayMusic(m.Region.Music);
 
-        if (m is PlayerMobile pm)
+        InvokeRuntimeLoginHooks(m);
+    }
+
+    private static void InvokeRuntimeLoginHooks(Mobile mobile)
+    {
+        if (mobile == null)
         {
-            PlayerMobile.PlayerLoginEvent(pm);
+            return;
+        }
+
+        EventSink.InvokeLogin(mobile);
+
+        var mobileType = mobile.GetType();
+        if (!string.Equals(mobileType.FullName, "Server.Mobiles.PlayerMobile", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var loginEvent = mobileType.GetMethod(
+            "PlayerLoginEvent",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+            null,
+            [mobileType],
+            null
+        );
+
+        if (loginEvent == null)
+        {
+            return;
+        }
+
+        try
+        {
+            loginEvent.Invoke(null, [mobile]);
+        }
+        catch (TargetInvocationException ex)
+        {
+            var cause = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"[LoginCompat] PlayerLoginEvent failed for {mobileType.Assembly.GetName().Name}: {cause}");
         }
     }
 
@@ -380,9 +417,8 @@ public static class IncomingAccountPackets
         var username = reader.ReadLatin1Safe(30);
         var password = reader.ReadLatin1Safe(30);
 
-        var e = new GameServer.GameLoginEventArgs(state, username, password);
-
-        GameServer.GameServerLoginEvent(e);
+        var e = new global::Server.GameLoginEventArgs(state, username, password);
+        EventSink.InvokeGameLogin(e);
 
         if (e.Accepted)
         {
@@ -460,9 +496,9 @@ public static class IncomingAccountPackets
 
         if (accountLoginEventArgs.Accepted)
         {
-            var serverListEventArgs = new GatewayServer.ServerListEventArgs(state, state.Account);
+            var serverListEventArgs = new global::Server.ServerListEventArgs(state, state.Account);
 
-            GatewayServer.ServerListEvent(serverListEventArgs);
+            EventSink.InvokeServerList(serverListEventArgs);
 
             if (serverListEventArgs.Rejected)
             {

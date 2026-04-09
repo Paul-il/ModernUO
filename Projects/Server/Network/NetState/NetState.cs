@@ -29,6 +29,8 @@ using System.Runtime.CompilerServices;
 
 namespace Server.Network;
 
+public delegate void EncodePacket(ReadOnlySpan<byte> inputBuffer, Span<byte> outputBuffer, out int length);
+
 public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetState>, IDisposable
 {
     private static readonly ILogger logger = LogFactory.GetLogger(typeof(NetState));
@@ -50,6 +52,7 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
     private ClientVersion _version;
     private bool _running = true;
     private IClientEncryption _encryption;
+    private volatile EncodePacket _packetEncoder;
     private bool _flushQueued;
     private bool _disconnectQueued; // Queued for disconnect processing (after flush)
     private long[] _packetThrottles;
@@ -189,6 +192,12 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
     internal IORingBuffer SendBuffer => _socket?.SendBuffer;
 
     public bool CompressionEnabled { get; set; }
+
+    public EncodePacket PacketEncoder
+    {
+        get => _packetEncoder;
+        set => _packetEncoder = value;
+    }
 
     public int Sequence { get; set; }
 
@@ -451,8 +460,11 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
 
         try
         {
-            // Apply encoding first (e.g., compression from UOContent)
-            if (CompressionEnabled)
+            if (_packetEncoder != null)
+            {
+                _packetEncoder(span, buffer, out length);
+            }
+            else if (CompressionEnabled)
             {
                 length = NetworkCompression.Compress(span, buffer);
             }
@@ -491,7 +503,7 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
             var logDir = Path.Combine(_packetLoggingPath, _toString);
             PathUtility.EnsureDirectory(logDir);
             var logPath = Path.Combine(logDir, "packets.log");
-            using var op = new StreamWriter(logPath, true);
+            using var op = OpenPacketLogWriter(logPath);
 
             op.WriteLine(">>>>>>>>>> Logging started {0:yyyy/MM/dd HH:mm::ss} <<<<<<<<<<", Core.Now);
             op.WriteLine();
@@ -514,7 +526,7 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
             const string incomingStr = "Client -> Server";
             const string outgoingStr = "Server -> Client";
 
-            using var sw = new StreamWriter(logPath, true);
+            using var sw = OpenPacketLogWriter(logPath);
             sw.WriteLine($"{Core.Now:HH:mm:ss.ffff}: {(incoming ? incomingStr : outgoingStr)} 0x{buffer[0]:X2} (Length: {buffer.Length})");
             sw.FormatBuffer(buffer);
             sw.WriteLine();
@@ -525,6 +537,9 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
             // ignored
         }
     }
+
+    private static StreamWriter OpenPacketLogWriter(string logPath) =>
+        new(new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite));
 
     private void DecryptRecvBuffer(int bytesReceived)
     {

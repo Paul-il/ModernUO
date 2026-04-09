@@ -41,8 +41,6 @@ namespace Server.Misc
 
         public static bool AutoDetect { get; private set; }
 
-        private static bool _useServerListingAddressConfig { get; set; }
-
         public static void Configure()
         {
             Address = ServerConfiguration.GetOrUpdateSetting("serverListing.address", null);
@@ -62,13 +60,6 @@ namespace Server.Misc
             else
             {
                 Resolve(Address, out _publicAddress);
-
-                if (_publicAddress != null)
-                {
-                    _useServerListingAddressConfig = true;
-
-                    logger.Information("Server listing address set from config: {address}", _publicAddress);
-                }
             }
         }
 
@@ -88,13 +79,8 @@ namespace Server.Misc
                 var localAddress = localEndPoint.Address;
                 var localPort = localEndPoint.Port;
 
-                if (_useServerListingAddressConfig)
+                if (localAddress.IsPrivateNetwork())
                 {
-                    localAddress = _publicAddress;
-                }
-                else if (localAddress.IsPrivateNetwork())
-                {
-                    // Check if client is from a public network
                     if (!ns.Address.IsPrivateNetwork() && _publicAddress != null)
                     {
                         localAddress = _publicAddress;

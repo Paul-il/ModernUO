@@ -25,6 +25,12 @@ public static partial class IncomingExtendedCommandPackets
 {
     private static readonly PacketHandler[] _extendedHandlers = new PacketHandler[0x100];
 
+    [GeneratedEvent(nameof(SpellbookCastRequestEvent))]
+    public static partial void SpellbookCastRequestEvent(Mobile mobile, int spellId, Item item);
+
+    [GeneratedEvent(nameof(TargetedSkillUseEvent))]
+    public static partial void TargetedSkillUseEvent(Mobile mobile, IEntity target, int skillId);
+
     // TODO: Change to outside configuration
     public static int[] ValidAnimations { get; } =
     {
@@ -266,7 +272,7 @@ public static partial class IncomingExtendedCommandPackets
         var spellbook = reader.ReadInt16() == 1 ? World.FindItem((Serial)reader.ReadUInt32()) : null;
 
         var spellID = reader.ReadInt16() - 1;
-        Spellbook.CastSpellRequest(from, spellID, spellbook);
+        EventSink.InvokeCastSpellRequest(from, spellID, spellbook);
     }
 
     public static void ToggleFlying(NetState state, SpanReader reader)
@@ -429,8 +435,12 @@ public static partial class IncomingExtendedCommandPackets
     public static void TargetedSkillUse(NetState state, SpanReader reader)
     {
         var skillId = reader.ReadInt16();
+        var target = World.FindEntity((Serial)reader.ReadUInt32());
 
-        PlayerMobile.TargetedSkillUse(state.Mobile, World.FindEntity((Serial)reader.ReadUInt32()), skillId);
+        if (state.Mobile != null && target != null)
+        {
+            EventSink.InvokeTargetedSkillUse(state.Mobile, target, skillId);
+        }
     }
 
     [GeneratedEvent("TargetByResourceMacro")]

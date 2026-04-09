@@ -15,6 +15,7 @@
 
 using System.Buffers;
 using CommunityToolkit.HighPerformance;
+using ModernUO.CodeGeneratedEvents;
 using Server.Engines.Help;
 using Server.Engines.MLQuests;
 using Server.Engines.Virtues;
@@ -25,8 +26,20 @@ using Server.Mobiles;
 
 namespace Server.Network;
 
-public static class IncomingPlayerPackets
+public static partial class IncomingPlayerPackets
 {
+    [GeneratedEvent(nameof(QuestGumpRequestEvent))]
+    public static partial void QuestGumpRequestEvent(Mobile mobile);
+
+    [GeneratedEvent(nameof(SpellbookOpenRequestEvent))]
+    public static partial void SpellbookOpenRequestEvent(Mobile mobile, int spellbookType);
+
+    [GeneratedEvent(nameof(SpellbookCastRequestEvent))]
+    public static partial void SpellbookCastRequestEvent(Mobile mobile, int spellId, Item item);
+
+    [GeneratedEvent(nameof(OpenDoorMacroUsedEvent))]
+    public static partial void OpenDoorMacroUsedEvent(Mobile mobile);
+
     public static unsafe void Configure()
     {
         IncomingPackets.Register(0x01, 5, false, &Disconnect);
@@ -132,7 +145,7 @@ public static class IncomingPlayerPackets
         {
             case 0xC7: // Animate
                 {
-                    Animations.AnimateRequest(from, command);
+                    EventSink.InvokeAnimateRequest(from, command);
 
                     break;
                 }
@@ -155,7 +168,7 @@ public static class IncomingPlayerPackets
                         booktype = 1;
                     }
 
-                    Spellbook.OpenSpellbookRequest(from, booktype);
+                    EventSink.InvokeOpenSpellbookRequest(from, booktype);
 
                     break;
                 }
@@ -164,14 +177,13 @@ public static class IncomingPlayerPackets
                     var tokenizer = command.Tokenize(' ');
                     var spellID = (tokenizer.MoveNext() ? Utility.ToInt32(tokenizer.Current) : 0) - 1;
                     var serial = tokenizer.MoveNext() ? (Serial)Utility.ToUInt32(tokenizer.Current) : Serial.MinusOne;
-
-                    Spellbook.CastSpellRequest(from, spellID, World.FindItem(serial));
+                    EventSink.InvokeCastSpellRequest(from, spellID, World.FindItem(serial));
 
                     break;
                 }
             case 0x58: // Open door
                 {
-                    BaseDoor.OpenDoorMacroUsed(from);
+                    EventSink.InvokeOpenDoorMacroUsed(from);
 
                     break;
                 }
@@ -179,7 +191,7 @@ public static class IncomingPlayerPackets
                 {
                     var spellID = Utility.ToInt32(command) - 1;
 
-                    Spellbook.CastSpellRequest(from, spellID, null);
+                    EventSink.InvokeCastSpellRequest(from, spellID, null);
 
                     break;
                 }
@@ -337,7 +349,10 @@ public static class IncomingPlayerPackets
 
     public static void HelpRequest(NetState state, SpanReader reader)
     {
-        HelpGump.HelpRequest(state.Mobile);
+        if (state.Mobile != null)
+        {
+            EventSink.InvokeHelpRequest(state.Mobile);
+        }
     }
 
     public static void SetWarMode(NetState state, SpanReader reader)
@@ -451,7 +466,7 @@ public static class IncomingPlayerPackets
 
     public static void QuestGumpRequest(NetState state, IEntity e, EncodedReader reader)
     {
-        MLQuestSystem.QuestGumpRequest(state.Mobile);
+        EventSink.InvokeQuestGumpRequest(state.Mobile);
     }
 
     public static unsafe void EncodedCommand(NetState state, SpanReader reader)

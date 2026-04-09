@@ -77,33 +77,43 @@ public static class PoisonKinds
     {
         if (Core.AOS)
         {
-            Poison.Register(new PoisonImpl("Lesser", 0, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4));
-            Poison.Register(new PoisonImpl("Regular", 1, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3));
-            Poison.Register(new PoisonImpl("Greater", 2, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2));
-            Poison.Register(new PoisonImpl("Deadly", 3, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2));
-            Poison.Register(new PoisonImpl("Lethal", 4, 4, 20, 50, 35.0, 3.0, 5.25, 20, 2));
+            RegisterIfMissing(new PoisonImpl("Lesser", 0, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4));
+            RegisterIfMissing(new PoisonImpl("Regular", 1, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3));
+            RegisterIfMissing(new PoisonImpl("Greater", 2, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Deadly", 3, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2));
+            RegisterIfMissing(new PoisonImpl("Lethal", 4, 4, 20, 50, 35.0, 3.0, 5.25, 20, 2));
         }
         else
         {
-            Poison.Register(new PoisonImpl("Lesser", 0, 0, 4, 26, 2.5, 3.5, 3.0, 10, 2));
-            Poison.Register(new PoisonImpl("Regular", 1, 1, 5, 26, 3.125, 3.5, 3.0, 10, 2));
-            Poison.Register(new PoisonImpl("Greater", 2, 2, 6, 26, 6.25, 3.5, 3.0, 10, 2));
-            Poison.Register(new PoisonImpl("Deadly", 3, 3, 7, 26, 12.5, 3.5, 4.0, 10, 2));
-            Poison.Register(new PoisonImpl("Lethal", 4, 4, 9 , 26, 25.0, 3.5, 5.0, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Lesser", 0, 0, 4, 26, 2.5, 3.5, 3.0, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Regular", 1, 1, 5, 26, 3.125, 3.5, 3.0, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Greater", 2, 2, 6, 26, 6.25, 3.5, 3.0, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Deadly", 3, 3, 7, 26, 12.5, 3.5, 4.0, 10, 2));
+            RegisterIfMissing(new PoisonImpl("Lethal", 4, 4, 9 , 26, 25.0, 3.5, 5.0, 10, 2));
         }
 
         if (Core.ML)
         {
-            Poison.Register(new PoisonImpl("LesserDarkglow", 10, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4, PoisonFamily.Darkglow));
-            Poison.Register(new PoisonImpl("RegularDarkglow", 11, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3, PoisonFamily.Darkglow));
-            Poison.Register(new PoisonImpl("GreaterDarkglow", 12, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2, PoisonFamily.Darkglow));
-            Poison.Register(new PoisonImpl("DeadlyDarkglow", 13, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2, PoisonFamily.Darkglow));
+            RegisterIfMissing(new PoisonImpl("LesserDarkglow", 10, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4, PoisonFamily.Darkglow));
+            RegisterIfMissing(new PoisonImpl("RegularDarkglow", 11, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3, PoisonFamily.Darkglow));
+            RegisterIfMissing(new PoisonImpl("GreaterDarkglow", 12, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2, PoisonFamily.Darkglow));
+            RegisterIfMissing(new PoisonImpl("DeadlyDarkglow", 13, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2, PoisonFamily.Darkglow));
 
-            Poison.Register(new PoisonImpl("LesserParasitic", 20, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4, PoisonFamily.Parasitic));
-            Poison.Register(new PoisonImpl("RegularParasitic", 21, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3, PoisonFamily.Parasitic));
-            Poison.Register(new PoisonImpl("GreaterParasitic", 22, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2, PoisonFamily.Parasitic));
-            Poison.Register(new PoisonImpl("DeadlyParasitic", 23, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2, PoisonFamily.Parasitic));
-            Poison.Register(new PoisonImpl("LethalParasitic", 24, 4, 20, 50, 35.0, 3.0, 5.25, 20, 2, PoisonFamily.Parasitic));
+            RegisterIfMissing(new PoisonImpl("LesserParasitic", 20, 0, 4, 16, 7.5, 3.0, 2.25, 10, 4, PoisonFamily.Parasitic));
+            RegisterIfMissing(new PoisonImpl("RegularParasitic", 21, 1, 8, 18, 10.0, 3.0, 3.25, 10, 3, PoisonFamily.Parasitic));
+            RegisterIfMissing(new PoisonImpl("GreaterParasitic", 22, 2, 12, 20, 15.0, 3.0, 4.25, 10, 2, PoisonFamily.Parasitic));
+            RegisterIfMissing(new PoisonImpl("DeadlyParasitic", 23, 3, 16, 30, 30.0, 3.0, 5.25, 15, 2, PoisonFamily.Parasitic));
+            RegisterIfMissing(new PoisonImpl("LethalParasitic", 24, 4, 20, 50, 35.0, 3.0, 5.25, 20, 2, PoisonFamily.Parasitic));
         }
+    }
+
+    private static void RegisterIfMissing(Poison poison)
+    {
+        if (Poison.GetPoison(poison.Name) != null || Poison.GetPoisonByIndex(poison.Index) != null)
+        {
+            return;
+        }
+
+        Poison.Register(poison);
     }
 }

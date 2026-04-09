@@ -25,8 +25,11 @@ namespace Server.Network
         [CallPriority(10)]
         public static void Configure()
         {
-            _handlers = ProtocolExtensions<FreeshardProtocolInfo>.Register(new FreeshardProtocolInfo());
+            _handlers ??= ProtocolExtensions<FreeshardProtocolInfo>.Register(new FreeshardProtocolInfo());
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void EnsureConfigured() => _handlers ??= ProtocolExtensions<FreeshardProtocolInfo>.Register(new FreeshardProtocolInfo());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void Register(int cmd, bool ingame, delegate*<NetState, SpanReader, void> onReceive) =>
@@ -35,7 +38,11 @@ namespace Server.Network
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void Register(
             int cmd, bool ingame, bool outgame, delegate*<NetState, SpanReader, void> onReceive
-        ) => _handlers[cmd] = new PacketHandler(cmd, onReceive, inGameOnly: ingame, outGameOnly: outgame);
+        )
+        {
+            EnsureConfigured();
+            _handlers[cmd] = new PacketHandler(cmd, onReceive, inGameOnly: ingame, outGameOnly: outgame);
+        }
 
         private struct FreeshardProtocolInfo : IProtocolExtensionsInfo
         {

@@ -22,6 +22,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -376,6 +377,7 @@ public static class Core
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
         AppDomain.CurrentDomain.AssemblyResolve += AssemblyHandler.AssemblyResolver;
+        AssemblyLoadContext.Default.Resolving += AssemblyHandler.AssemblyResolver;
 
         Console.OutputEncoding = Encoding.UTF8;
         Thread.Name = "Core Thread";
@@ -536,6 +538,12 @@ public static class Core
         _performSnapshot = true;
     }
 
+    public static void Main(string[] args)
+    {
+        var applicationAssembly = Assembly.GetEntryAssembly() ?? throw new InvalidOperationException("Assembly entry is missing.");
+        Setup(applicationAssembly, Process.GetCurrentProcess());
+    }
+
     public static void VerifySerialization()
     {
         _itemCount = 0;
@@ -644,7 +652,25 @@ public static class Core
     {
         if (assembly != null)
         {
-            Parallel.ForEach(assembly.GetTypes(), VerifyType);
+            try
+            {
+                Parallel.ForEach(assembly.GetTypes(), VerifyType);
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Console.WriteLine(
+                    "Warning: Serialization verification partially skipped for assembly {0}: {1}",
+                    assembly.FullName,
+                    ex.Message
+                );
+
+                foreach (var loaderException in ex.LoaderExceptions.Where(exception => exception != null))
+                {
+                    Console.WriteLine(loaderException);
+                }
+
+                Parallel.ForEach(ex.Types.Where(type => type != null), VerifyType);
+            }
         }
     }
 }

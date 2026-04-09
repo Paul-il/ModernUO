@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using Server.Json;
 
@@ -132,11 +134,96 @@ public static class SkillsInfo
 
     public static void Configure()
     {
-        SkillInfo.Table = JsonConfig.Deserialize<SkillInfo[]>(Path.Combine(Core.BaseDirectory, "Data/skills.json"));
+        var configuredTable = JsonConfig.Deserialize<SkillInfo[]>(Path.Combine(Core.BaseDirectory, "Data/skills.json"));
+        SkillInfo.Table = EnsureFullSkillTable(configuredTable);
 
         if (Core.AOS)
         {
             AOS.DisableStatInfluences();
         }
+    }
+
+    private static SkillInfo[] EnsureFullSkillTable(SkillInfo[] configuredTable)
+    {
+        var existingTable = SkillInfo.Table;
+        var skillValues = Enum.GetValues<SkillName>();
+        var maxSkillId = 0;
+
+        foreach (var skill in skillValues)
+        {
+            maxSkillId = Math.Max(maxSkillId, (int)skill);
+        }
+
+        var table = configuredTable?.Length > maxSkillId
+            ? configuredTable
+            : new SkillInfo[maxSkillId + 1];
+
+        if (configuredTable != null && !ReferenceEquals(table, configuredTable))
+        {
+            Array.Copy(configuredTable, table, configuredTable.Length);
+        }
+
+        foreach (var skill in skillValues)
+        {
+            var skillId = (int)skill;
+            var existingInfo = existingTable != null && skillId < existingTable.Length ? existingTable[skillId] : null;
+
+            if (table[skillId] != null)
+            {
+                if (table[skillId].Callback == null && existingInfo?.Callback != null)
+                {
+                    table[skillId].Callback = existingInfo.Callback;
+                }
+
+                continue;
+            }
+
+            var rawName = skill.ToString();
+            var displayName = SplitSkillName(rawName);
+
+            table[skillId] = new SkillInfo(
+                skillId,
+                displayName,
+                0d,
+                0d,
+                0d,
+                displayName,
+                existingInfo?.Callback,
+                0d,
+                0d,
+                0d,
+                1d,
+                rawName,
+                Stat.Str,
+                Stat.Str
+            );
+        }
+
+        return table;
+    }
+
+    private static string SplitSkillName(string rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return rawName;
+        }
+
+        var chars = new List<char>(rawName.Length + 4) { rawName[0] };
+
+        for (var i = 1; i < rawName.Length; i++)
+        {
+            var current = rawName[i];
+            var previous = rawName[i - 1];
+
+            if (char.IsUpper(current) && !char.IsUpper(previous))
+            {
+                chars.Add(' ');
+            }
+
+            chars.Add(current);
+        }
+
+        return new string(chars.ToArray());
     }
 }

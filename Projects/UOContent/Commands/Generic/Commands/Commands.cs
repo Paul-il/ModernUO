@@ -19,6 +19,11 @@ namespace Server.Commands.Generic
 
         public static void Configure()
         {
+            if (ShouldDeferToZuluOwner())
+            {
+                return;
+            }
+
             Register(new KillCommand(true));
             Register(new KillCommand(false));
             Register(new HideCommand(true));
@@ -72,6 +77,11 @@ namespace Server.Commands.Generic
 
         public static void Register(BaseCommand command)
         {
+            if (ShouldDeferToZuluOwner())
+            {
+                return;
+            }
+
             AllCommands.Add(command);
 
             var impls = BaseCommandImplementor.Implementors;
@@ -85,6 +95,24 @@ namespace Server.Commands.Generic
                     impl.Register(command);
                 }
             }
+        }
+
+        private static bool ShouldDeferToZuluOwner()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!string.Equals(assembly.GetName().Name, "ZuluContent", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (assembly.GetType(typeof(TargetCommands).FullName!, throwOnError: false, ignoreCase: false) != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 

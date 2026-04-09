@@ -13,6 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  *************************************************************************/
 
+using ModernUO.CodeGeneratedEvents;
 using Server.Engines.Virtues;
 using Server.Exceptions;
 using Server.Mobiles;
@@ -28,6 +29,9 @@ namespace Server.Gumps;
 
 public static partial class GumpSystem
 {
+    [GeneratedEvent(nameof(VirtueGumpRequestEvent))]
+    public static partial void VirtueGumpRequestEvent(PlayerMobile beholder, PlayerMobile beheld, VirtueGumpRequestContext context);
+
     public static void DisplayGumpResponse(NetState state, SpanReader reader)
     {
         var serial = (Serial)reader.ReadUInt32();
@@ -177,7 +181,8 @@ public static partial class GumpSystem
 
                 if (beheld != null)
                 {
-                    VirtueGump.RequestVirtueGump((PlayerMobile)state.Mobile, beheld);
+                    var beholder = (PlayerMobile)state.Mobile;
+                    EventSink.InvokeVirtueGumpRequest(beholder, beheld);
                 }
             }
             else
@@ -186,9 +191,14 @@ public static partial class GumpSystem
 
                 if (beheld != null)
                 {
-                    VirtueGump.RequestVirtueItem((PlayerMobile)state.Mobile, beheld, buttonId);
+                    EventSink.InvokeVirtueItemRequest((PlayerMobile)state.Mobile, beheld, buttonId);
                 }
             }
         }
     }
+}
+
+public sealed class VirtueGumpRequestContext
+{
+    public bool Handled { get; set; }
 }

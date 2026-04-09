@@ -22,15 +22,22 @@ namespace Server.Network
 {
     public static class UOGateway
     {
-        public static unsafe void Configure()
-        {
-            var enabled = ServerConfiguration.GetOrUpdateSetting("uogateway.enabled", true);
+        private static bool _enabled;
 
-            if (enabled)
+        public static void Configure()
+        {
+            _enabled = ServerConfiguration.GetOrUpdateSetting("uogateway.enabled", true);
+        }
+
+        public static unsafe void Initialize()
+        {
+            if (!_enabled)
             {
-                FreeshardProtocol.Register(0xFE, false, &QueryCompactShardStats);
-                FreeshardProtocol.Register(0xFF, false, &QueryExtendedShardStats);
+                return;
             }
+
+            FreeshardProtocol.Register(0xFE, false, &QueryCompactShardStats);
+            FreeshardProtocol.Register(0xFF, false, &QueryExtendedShardStats);
         }
 
         public static void QueryCompactShardStats(NetState state, SpanReader reader)
@@ -88,12 +95,13 @@ namespace Server.Network
             }
 
             var str =
-                $"ModernUO, Name={name}, Age={age}, Clients={clients}, Items={items}, Chars={mobiles}, Mem={mem}K, Ver=2\0";
+                $"ModernUO, Name={name}, Age={age}, Clients={clients}, Items={items}, Chars={mobiles}, Mem={mem}K, Ver=2";
 
-            var length = Encoding.UTF8.GetByteCount(str);
+            var length = Encoding.UTF8.GetMaxByteCount(str.Length);
 
-            Span<byte> span = stackalloc byte[length];
+            Span<byte> span = stackalloc byte[length + 1];
             Encoding.UTF8.GetBytes(str, span);
+            span[^1] = 0;
 
             ns.Send(span);
         }

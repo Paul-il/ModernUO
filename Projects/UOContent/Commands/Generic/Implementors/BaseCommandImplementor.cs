@@ -64,6 +64,11 @@ namespace Server.Commands.Generic
 
         public static void RegisterImplementors()
         {
+            if (ShouldDeferToZuluOwner())
+            {
+                return;
+            }
+
             Register(new RegionCommandImplementor());
             Register(new GlobalCommandImplementor());
             Register(new OnlineCommandImplementor());
@@ -309,8 +314,31 @@ namespace Server.Commands.Generic
 
         public static void Register(BaseCommandImplementor impl)
         {
+            if (ShouldDeferToZuluOwner())
+            {
+                return;
+            }
+
             _implementors.Add(impl);
             impl.Register();
+        }
+
+        private static bool ShouldDeferToZuluOwner()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!string.Equals(assembly.GetName().Name, "ZuluContent", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (assembly.GetType(typeof(BaseCommandImplementor).FullName!, throwOnError: false, ignoreCase: false) != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

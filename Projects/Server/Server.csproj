@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk" ToolsVersion="Current">
     <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <StartupObject>Server.Core</StartupObject>
+        <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
         <Product>ModernUO Core</Product>
         <OutDir>..\..\Distribution</OutDir>
         <PublishDir>..\..\Distribution</PublishDir>
@@ -40,7 +43,7 @@
         <PackageReference Include="System.IO.Hashing" Version="10.0.5" />
 
         <PackageReference Include="ModernUO.Serialization.Annotations" Version="2.14.2" />
-        <PackageReference Include="ModernUO.Serialization.Generator" Version="2.14.3" />
+        <PackageReference Include="ModernUO.Serialization.Generator" Version="2.13.0" />
     </ItemGroup>
     <ItemGroup>
         <AdditionalFiles Include="Migrations/*.v*.json" />

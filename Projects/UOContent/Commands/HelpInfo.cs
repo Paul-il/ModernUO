@@ -13,11 +13,14 @@ public static class HelpInfo
     private static List<CommandInfo> _sortedHelpInfo;
     private static Dictionary<string, CommandInfo> _helpInfos;
     private static Dictionary<AccessLevel, List<CommandInfo>> _accessLevelCache;
+    private static bool _registrationHooked;
 
     public static Dictionary<string, CommandInfo> HelpInfos
     {
         get
         {
+            HookRegistrationInvalidation();
+
             if (_helpInfos == null)
             {
                 FillTable();
@@ -31,6 +34,8 @@ public static class HelpInfo
     {
         get
         {
+            HookRegistrationInvalidation();
+
             if (_sortedHelpInfo == null)
             {
                 FillTable();
@@ -69,7 +74,15 @@ public static class HelpInfo
 
     public static void Initialize()
     {
+        HookRegistrationInvalidation();
         FillTable();
+    }
+
+    public static void InvalidateCache()
+    {
+        _sortedHelpInfo = null;
+        _helpInfos = null;
+        _accessLevelCache = null;
     }
 
     [Usage("HelpInfo [<command>]")]
@@ -214,6 +227,17 @@ public static class HelpInfo
         {
             _helpInfos.TryAdd(c.Name.ToLower(), c);
         }
+    }
+
+    private static void HookRegistrationInvalidation()
+    {
+        if (_registrationHooked)
+        {
+            return;
+        }
+
+        _registrationHooked = true;
+        CommandSystem.RegistrationsChanged += InvalidateCache;
     }
 
     public class CommandListGump : DynamicGump

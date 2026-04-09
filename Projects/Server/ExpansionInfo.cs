@@ -14,6 +14,7 @@
  *************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
 using Server.Json;
@@ -223,13 +224,99 @@ public class ExpansionInfo
     static ExpansionInfo()
     {
         var path = Path.Combine(Core.BaseDirectory, "Data/expansions.json");
-        if (!File.Exists(path))
+        if (File.Exists(path))
         {
-            throw new FileNotFoundException($"Expansion file '{path}' could not be found.");
+            try
+            {
+                Table = JsonConfig.Deserialize<ExpansionInfo[]>(path);
+
+                if (Table is { Length: > 0 })
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to load modern expansion table '{path}', falling back to legacy expansion.json: {ex.Message}");
+            }
         }
 
-        Table = JsonConfig.Deserialize<ExpansionInfo[]>(path);
+        var legacyPath = Path.Combine(Core.BaseDirectory, "Data/expansion.json");
+        var legacyExpansions = JsonConfig.Deserialize<List<LegacyExpansionConfig>>(legacyPath);
+
+        if (legacyExpansions is { Count: > 0 })
+        {
+            Table = CreateLegacyTable(legacyExpansions);
+            return;
+        }
+
+        throw new FileNotFoundException(
+            $"Expansion file '{path}' could not be loaded, and fallback file '{legacyPath}' was not found or invalid."
+        );
     }
+
+    private static ExpansionInfo[] CreateLegacyTable(List<LegacyExpansionConfig> legacyExpansions)
+    {
+        var table = new ExpansionInfo[legacyExpansions.Count];
+
+        for (var i = 0; i < legacyExpansions.Count; i++)
+        {
+            var expansion = legacyExpansions[i];
+            var mapSelectionFlags = GetDefaultMapSelection((Expansion)i);
+            var mobileStatusVersion = GetDefaultMobileStatusVersion((Expansion)i);
+
+            table[i] = expansion.ClientVersion != null
+                ? new ExpansionInfo(
+                    i,
+                    expansion.Name,
+                    expansion.ClientVersion,
+                    expansion.FeatureFlags,
+                    expansion.CharacterListFlags,
+                    expansion.HousingFlags,
+                    mobileStatusVersion,
+                    mapSelectionFlags
+                )
+                : new ExpansionInfo(
+                    i,
+                    expansion.Name,
+                    expansion.ClientFlags ?? ClientFlags.None,
+                    expansion.FeatureFlags,
+                    expansion.CharacterListFlags,
+                    expansion.HousingFlags,
+                    mobileStatusVersion,
+                    mapSelectionFlags
+                );
+        }
+
+        return table;
+    }
+
+    private static MapSelectionFlags GetDefaultMapSelection(Expansion expansion) =>
+        expansion switch
+        {
+            Expansion.None => MapSelectionFlags.Felucca,
+            Expansion.T2A => MapSelectionFlags.Felucca,
+            Expansion.UOR => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel,
+            Expansion.UOTD => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar,
+            Expansion.LBR => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar,
+            Expansion.AOS => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar |
+                             MapSelectionFlags.Malas,
+            Expansion.SE => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar |
+                            MapSelectionFlags.Malas | MapSelectionFlags.Tokuno,
+            Expansion.ML => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar |
+                            MapSelectionFlags.Malas | MapSelectionFlags.Tokuno,
+            _ => MapSelectionFlags.Felucca | MapSelectionFlags.Trammel | MapSelectionFlags.Ilshenar |
+                 MapSelectionFlags.Malas | MapSelectionFlags.Tokuno | MapSelectionFlags.TerMur
+        };
+
+    private static int GetDefaultMobileStatusVersion(Expansion expansion) =>
+        expansion switch
+        {
+            < Expansion.AOS => 3,
+            < Expansion.ML  => 4,
+            < Expansion.HS  => 5,
+            _               => 6
+        };
 
     public ExpansionInfo(
         int id,
@@ -313,4 +400,22 @@ public class ExpansionInfo
     }
 
     public override string ToString() => Name;
+}
+
+public record LegacyExpansionConfig
+{
+    public string Name { get; init; }
+
+    public ClientVersion? ClientVersion { get; init; }
+
+    public ClientFlags? ClientFlags { get; init; }
+
+    [JsonConverter(typeof(FlagsConverter<FeatureFlags>))]
+    public FeatureFlags FeatureFlags { get; init; }
+
+    [JsonConverter(typeof(FlagsConverter<CharacterListFlags>))]
+    public CharacterListFlags CharacterListFlags { get; init; }
+
+    [JsonConverter(typeof(FlagsConverter<HousingFlags>))]
+    public HousingFlags HousingFlags { get; init; }
 }

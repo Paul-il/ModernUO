@@ -34,6 +34,8 @@ public interface IGenericEntityPersistence
 public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPersistence where T : class, ISerializable
 {
     private static readonly ILogger logger = LogFactory.GetLogger(typeof(GenericEntityPersistence<T>));
+    private const string AutoDeleteBadDeserializeEnvVar = "ZULU_PARITY_AUTO_DELETE_BAD_DESERIALIZE";
+    private const int LegacyBackpackOptionalVersionBytes = sizeof(int);
 
     // Support legacy split file serialization
     private static Dictionary<int, List<EntitySpan<T>>> _entities;
@@ -385,7 +387,11 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
 
         Deserialize(dataReader);
 
-        var deleteAllFailures = false;
+        var deleteAllFailures = string.Equals(
+            Environment.GetEnvironmentVariable(AutoDeleteBadDeserializeEnvVar),
+            "true",
+            StringComparison.OrdinalIgnoreCase
+        );
 
         foreach (var entry in _entities[index])
         {
@@ -410,11 +416,14 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
                 dataReader.Seek(entry.Position, SeekOrigin.Begin);
                 var pos = entry.Position;
 
-                t.Deserialize(dataReader);
+                using (DeserializeCompatibilityScope.PushEntryBounds(entry.Position, entry.Length))
+                {
+                    t.Deserialize(dataReader);
+                }
                 var lengthDeserialized = dataReader.Position - pos;
 
                 error = lengthDeserialized != entry.Length
-                    ? $"Serialized object was {entry.Length} bytes, but {lengthDeserialized} bytes deserialized"
+                    ? BuildDeserializeLengthError(t, entry.Length, lengthDeserialized)
                     : null;
             }
             catch (Exception e)
@@ -441,6 +450,10 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
                         throw new Exception("Deserialization failed.");
                     }
                 }
+                else
+                {
+                    Console.WriteLine($"[ParityDeserialize] Auto-deleting {t.GetType()} ({t.Serial}) because {AutoDeleteBadDeserializeEnvVar}=true.");
+                }
 
                 _toDelete ??= [];
                 _toDelete.Add(t);
@@ -448,6 +461,28 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
         }
 
         accessor.SafeMemoryMappedViewHandle.ReleasePointer();
+    }
+
+    private static string BuildDeserializeLengthError(T entity, long expectedLength, long actualLength)
+    {
+        if (IsAcceptedLegacyBackpackLengthDrift(entity, expectedLength, actualLength))
+        {
+            return null;
+        }
+
+        return $"Serialized object was {expectedLength} bytes, but {actualLength} bytes deserialized";
+    }
+
+    private static bool IsAcceptedLegacyBackpackLengthDrift(T entity, long expectedLength, long actualLength)
+    {
+        if (entity is not Item item)
+        {
+            return false;
+        }
+
+        return item.GetType().FullName == "Server.Items.Backpack" &&
+               expectedLength == 35 &&
+               actualLength == expectedLength + LegacyBackpackOptionalVersionBytes;
     }
 
     private void TryDeserializeMultithread(string savePath, Dictionary<ulong, string> typesDb)

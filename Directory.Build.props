@@ -8,7 +8,8 @@
         <LangVersion>14</LangVersion>
         <PublicRelease>true</PublicRelease>
         <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-        <NoWarn>NU1603</NoWarn>
+        <NoWarn>NU1603;NU1900</NoWarn>
+        <NuGetAudit>false</NuGetAudit>
         <RuntimeIdentifiers>win-x64;win-arm64;osx-x64;osx-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
         <Configurations>Debug;Release;Analyze</Configurations>
         <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>

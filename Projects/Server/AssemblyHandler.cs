@@ -33,17 +33,11 @@ public static class AssemblyHandler
     internal static Assembly AssemblyResolver(object sender, ResolveEventArgs args)
     {
         var assemblyName = new AssemblyName(args.Name);
-        var assembly = LoadAssemblyByAssemblyName(assemblyName);
-        if (assembly == null)
-        {
-            throw new FileNotFoundException(
-                $"Could not load file or assembly {assemblyName}. The system cannot find the file specified. Review the assemblyDirectories field in {ServerConfiguration.ConfigurationFilePath}",
-                $"{assemblyName.Name}.dll"
-            );
-        }
-
-        return assembly;
+        return LoadAssemblyByAssemblyName(assemblyName);
     }
+
+    internal static Assembly AssemblyResolver(AssemblyLoadContext context, AssemblyName assemblyName) =>
+        LoadAssemblyByAssemblyName(assemblyName);
 
     private static void EnsureAssemblyDirectories()
     {
@@ -59,6 +53,15 @@ public static class AssemblyHandler
         if (assemblyName?.Name == null)
         {
             return null;
+        }
+
+        var loadedAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
+            assembly => string.Equals(assembly?.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (loadedAssembly != null)
+        {
+            return loadedAssembly;
         }
 
         var fullName = assemblyName.FullName;
@@ -77,6 +80,18 @@ public static class AssemblyHandler
                 var assemblyNameCheck = AssemblyName.GetAssemblyName(assemblyPath);
                 if (assemblyNameCheck.FullName == fullName)
                 {
+                    assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+                    break;
+                }
+
+                if (string.Equals(assemblyNameCheck.Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine(
+                        "Warning: Resolving assembly {0} using simple-name match {1}",
+                        fullName,
+                        assemblyNameCheck.FullName
+                    );
+
                     assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
                     break;
                 }
@@ -144,13 +159,136 @@ public static class AssemblyHandler
 
         for (var i = 0; i < invoke.Count; ++i)
         {
+            if (ShouldSkipInvocation(method, invoke[i]))
+            {
+                continue;
+            }
+
             invoke[i].Invoke(null, null);
         }
     }
 
+    public static bool IsUoContentManagedByCore() =>
+        Assemblies?.Any(a => string.Equals(a?.GetName().Name, "UOContent", StringComparison.OrdinalIgnoreCase)) == true;
+
+    public static bool ShouldSkipUoContentInvocation(string methodName, MethodInfo method)
+    {
+        if (method.DeclaringType?.Assembly.GetName().Name is not { } assemblyName ||
+            !string.Equals(assemblyName, "UOContent", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (HasLoadedOverride(method.DeclaringType))
+        {
+            return true;
+        }
+
+        return methodName switch
+        {
+            "Configure" => ShouldSkipUoContentConfigure(method),
+            "Initialize" => ShouldSkipUoContentInitialize(method),
+            _ => false
+        };
+    }
+
+    private static bool ShouldSkipInvocation(string methodName, MethodInfo method) =>
+        ShouldSkipUoContentInvocation(methodName, method);
+
+    private static bool ShouldSkipUoContentConfigure(MethodInfo method)
+    {
+        var fullName = method.DeclaringType?.FullName;
+        var @namespace = method.DeclaringType?.Namespace;
+
+        if (string.Equals(fullName, "Server.PoisonKinds", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (NamespaceStartsWith(@namespace, "Server.Accounting") ||
+            NamespaceStartsWith(@namespace, "Server.Commands") ||
+            NamespaceStartsWith(@namespace, "Server.Commands.Generic") ||
+            NamespaceStartsWith(@namespace, "Server.Assistants") ||
+            NamespaceStartsWith(@namespace, "Server.Engines.Help") ||
+            NamespaceStartsWith(@namespace, "Server.Engines.Spawners"))
+        {
+            return true;
+        }
+
+        return string.Equals(fullName, "Server.Misc.AccountHandler", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.AccountPrompt", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Engines.Spawners.ImportSpawnersCommand", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.Guild", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.HardwareInfo", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.Paperdoll", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Systems.JailSystem.JailSystem", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Network.AssistantProtocol", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Network.MapUO", StringComparison.Ordinal);
+    }
+
+    private static bool ShouldSkipUoContentInitialize(MethodInfo method)
+    {
+        var fullName = method.DeclaringType?.FullName;
+        var @namespace = method.DeclaringType?.Namespace;
+
+        if (NamespaceStartsWith(@namespace, "Server.Accounting") ||
+            NamespaceStartsWith(@namespace, "Server.Commands") ||
+            NamespaceStartsWith(@namespace, "Server.Commands.Generic") ||
+            NamespaceStartsWith(@namespace, "Server.Assistants") ||
+            NamespaceStartsWith(@namespace, "Server.Engines.Help") ||
+            NamespaceStartsWith(@namespace, "Server.Engines.Spawners"))
+        {
+            return true;
+        }
+
+        return string.Equals(fullName, "Server.Misc.AccountHandler", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.AccountPrompt", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Engines.Spawners.ImportSpawnersCommand", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.Guild", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.HardwareInfo", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Misc.Paperdoll", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Systems.JailSystem.JailSystem", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Mobiles.EscortDestinationInfo", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Network.AssistantProtocol", StringComparison.Ordinal) ||
+               string.Equals(fullName, "Server.Network.MapUO", StringComparison.Ordinal);
+    }
+
+    private static bool NamespaceStartsWith(string @namespace, string prefix) =>
+        @namespace?.StartsWith(prefix, StringComparison.Ordinal) == true;
+
+    private static bool HasLoadedOverride(Type type)
+    {
+        var fullName = type.FullName;
+        if (string.IsNullOrWhiteSpace(fullName) || Assemblies == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < Assemblies.Length; i++)
+        {
+            var assembly = Assemblies[i];
+            if (assembly == null || ReferenceEquals(assembly, type.Assembly))
+            {
+                continue;
+            }
+
+            if (!string.Equals(assembly.GetName().Name, "ZuluContent", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (assembly.GetType(fullName, throwOnError: false, ignoreCase: false) != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void AddMethods(this Assembly assembly, string method, List<MethodInfo> list)
     {
-        var types = assembly.GetTypes();
+        var types = GetLoadableTypes(assembly);
 
         for (var i = 0; i < types.Length; i++)
         {
@@ -183,6 +321,34 @@ public static class AssemblyHandler
         return m_TypeCaches[asm] = new TypeCache(asm);
     }
 
+    internal static Type[] GetLoadableTypes(Assembly assembly)
+    {
+        if (assembly == null)
+        {
+            return Type.EmptyTypes;
+        }
+
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            Console.WriteLine(
+                "Warning: Type scan partially skipped for assembly {0}: {1}",
+                assembly.FullName,
+                ex.Message
+            );
+
+            foreach (var loaderException in ex.LoaderExceptions.Where(exception => exception != null))
+            {
+                Console.WriteLine(loaderException);
+            }
+
+            return ex.Types.Where(type => type != null).ToArray();
+        }
+    }
+
     public static Type FindTypeByFullName(string name, bool ignoreCase = true) =>
         FindTypeByName(name, true, ignoreCase);
 
@@ -206,6 +372,14 @@ public static class AssemblyHandler
             return type;
         }
 
+        foreach (var assembly in GetSupplementalAssemblies())
+        {
+            foreach (var type in GetTypeCache(assembly).GetTypesByName(name, fullName, ignoreCase))
+            {
+                return type;
+            }
+        }
+
         return null;
     }
 
@@ -224,7 +398,37 @@ public static class AssemblyHandler
             return type;
         }
 
+        foreach (var assembly in GetSupplementalAssemblies())
+        {
+            foreach (var type in GetTypeCache(assembly).GetTypesByHash(hash, true, false))
+            {
+                return type;
+            }
+        }
+
         return null;
+    }
+
+    private static IEnumerable<Assembly> GetSupplementalAssemblies()
+    {
+        var loaded = AppDomain.CurrentDomain.GetAssemblies();
+
+        for (var i = 0; i < loaded.Length; i++)
+        {
+            var assembly = loaded[i];
+
+            if (assembly == null || assembly.IsDynamic || ReferenceEquals(assembly, Core.Assembly))
+            {
+                continue;
+            }
+
+            if (Assemblies != null && Array.IndexOf(Assemblies, assembly) >= 0)
+            {
+                continue;
+            }
+
+            yield return assembly;
+        }
     }
 }
 
@@ -241,7 +445,7 @@ public class TypeCache
 
     public TypeCache(Assembly asm)
     {
-        Types = asm?.GetTypes() ?? Type.EmptyTypes;
+        Types = AssemblyHandler.GetLoadableTypes(asm);
 
         var nameMap = new Dictionary<string, HashSet<Type>>();
         var nameMapInsensitive = new Dictionary<string, HashSet<Type>>();

@@ -97,32 +97,64 @@ public static class RegionJsonSerializer
     {
         var path = Path.Join(Core.BaseDirectory, "Data/regions.json");
 
+        var failures = new List<string>();
+        var count = 0;
+
         logger.Information("Loading regions");
 
         var stopwatch = Stopwatch.StartNew();
-
-        var regions = JsonConfig.Deserialize<List<Region>>(path, _options);
+        var regions = JsonConfig.Deserialize<List<DynamicJson>>(path);
         if (regions == null)
         {
             throw new JsonException($"Failed to deserialize {path}.");
         }
 
-        var count = 0;
-        foreach (var region in regions)
+        foreach (var json in regions)
         {
+            var type = AssemblyHandler.FindTypeByName(json.Type);
+
+            if (type == null || !typeof(Region).IsAssignableFrom(type))
+            {
+                failures.Add($"\tInvalid region type {json.Type}");
+                continue;
+            }
+
+            var region = type.CreateInstance<Region>(json, JsonConfig.DefaultOptions);
+            if (region == null)
+            {
+                failures.Add($"\tFailed creating region type {json.Type}");
+                continue;
+            }
+
             if (Core.Expansion >= region.MinExpansion && Core.Expansion <= region.MaxExpansion)
             {
+                region.Register();
                 count++;
             }
         }
 
         stopwatch.Stop();
 
-        logger.Information(
-            "Loading regions {Status} ({Count} regions) ({Duration:F2} seconds)",
-            "done",
-            count,
-            stopwatch.Elapsed.TotalSeconds
-        );
+        if (failures.Count == 0)
+        {
+            logger.Information(
+                "Loading regions {Status} ({Count} regions, {Failures} failures) ({Duration:F2} seconds)",
+                "done",
+                count,
+                failures.Count,
+                stopwatch.Elapsed.TotalSeconds
+            );
+        }
+        else
+        {
+            logger.Warning(
+                "Loading regions {Status} ({Count} regions, {Failures} failures) ({Duration:F2} seconds)",
+                "completed with warnings",
+                count,
+                failures.Count,
+                stopwatch.Elapsed.TotalSeconds
+            );
+            logger.Warning(string.Join(Environment.NewLine, failures));
+        }
     }
 }

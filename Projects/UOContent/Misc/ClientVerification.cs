@@ -34,6 +34,13 @@ namespace Server.Misc
             UOClient.MinRequired = ServerConfiguration.GetSetting("clientVerification.minRequired", (ClientVersion)null);
             UOClient.MaxRequired = ServerConfiguration.GetSetting("clientVerification.maxRequired", (ClientVersion)null);
 
+            // Live Zuluhotel historically used a single legacy requiredClient floor.
+            var legacyRequired = ServerConfiguration.GetSetting("clientVerification.requiredClient", (ClientVersion)null);
+            if (UOClient.MinRequired == null && legacyRequired != null)
+            {
+                UOClient.MinRequired = legacyRequired;
+            }
+
             _enable = ServerConfiguration.GetOrUpdateSetting("clientVerification.enable", true);
             _invalidClientResponse =
                 ServerConfiguration.GetOrUpdateSetting("clientVerification.invalidClientResponse", InvalidClientResponse.Kick);
