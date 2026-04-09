@@ -216,7 +216,12 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
         {
             // Legacy didn't have the null flag check
             var typeName = dataReader.ReadStringRaw();
-            types.Add((ulong)i, GetConstructorFor(typeName, AssemblyHandler.FindTypeByName(typeName), ctorArguments));
+            // The .tdb format stores FULL type names (e.g. "Server.Mobiles.PlayerMobile"),
+            // but FindTypeByName without fullName=true hashes the string against the simple-
+            // name map, which never matches and silently returns null. That trips the
+            // "Bad type" guard in GetConstructorFor and aborts the entire load. Use the
+            // full-name lookup helper instead.
+            types.Add((ulong)i, GetConstructorFor(typeName, AssemblyHandler.FindTypeByFullName(typeName), ctorArguments));
         }
 
         accessor.SafeMemoryMappedViewHandle.ReleasePointer();
@@ -274,7 +279,15 @@ public class GenericEntityPersistence<T> : GenericPersistence, IGenericEntityPer
 
         var version = dataReader.ReadInt();
 
-        var ctors = version < 2 ? ReadTypes(Path.GetDirectoryName(filePath)) : [];
+        // ReadTypes expects the *save root* (so it can append "{Name}/{Name}.tdb"),
+        // but filePath is already "$saveRoot/{Name}/{Name}.idx" — so we need the
+        // parent of the bucket dir, not the bucket dir itself. Passing the bucket
+        // dir causes ReadTypes to probe "$saveRoot/{Name}/{Name}/{Name}.tdb" and
+        // silently find nothing, which made every legacy RunUO save hydrate as
+        // 0 items / 0 mobiles.
+        var ctors = version < 2
+            ? ReadTypes(Path.GetDirectoryName(Path.GetDirectoryName(filePath)))
+            : [];
 
         if (typesDb == null && ctors.Count == 0)
         {
