@@ -93,7 +93,9 @@ public static class Core
     public static Assembly Assembly { get; set; }
 
     // Assembly file version
-    public static Version Version => new(ThisAssembly.AssemblyFileVersion);
+    // NerdBank.GitVersioning can't compute height correctly with local submodule
+    // commits. Hardcode the version (base 0.15.6.1 + ZuluHotel patches).
+    public static Version Version => new("0.15.6.1");
 
     public static Process Process { get; private set; }
 

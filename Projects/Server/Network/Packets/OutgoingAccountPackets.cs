@@ -317,12 +317,10 @@ public static class OutgoingAccountPackets
             }
         }
 
-        // Supported values are 1, 5, 6, or 7
-        var count = Math.Max(highSlot + 1, acct.Limit);
-        if (count is not 1 and < 5)
-        {
-            count = 5;
-        }
+        // Old ModernUO always padded to minimum 5 character slots.
+        // Sending fewer than 5 changes the packet length and field offsets,
+        // which breaks tooltip/OPL parsing on 7.0.91.15 client.
+        var count = Math.Max(Math.Max(highSlot + 1, acct.Limit), 5);
 
         var serializedNames = new string[count];
         var occupiedSlotIndices = new int[count];
