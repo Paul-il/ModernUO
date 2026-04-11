@@ -172,27 +172,41 @@ public static partial class GumpSystem
 
         if (typeId == 461)
         {
-            // Virtue gump
-            var switchCount = reader.Remaining >= 4 ? reader.ReadInt32() : 0;
-
-            if (buttonId == 1 && switchCount > 0)
+            // ZuluHotel: paperdoll virtue ankh click opens [MyInfo gump.
+            // Resolved via reflection because ZuluContent references UOContent
+            // through an `extern alias uocontent` — at runtime ZuluContent's
+            // PlayerMobile and UOContent's PlayerMobile are *different* CLR
+            // types despite the identical full name, so a bare
+            // `state.Mobile is PlayerMobile` cast inside this UOContent file
+            // would always fail for live players. The reflection call passes
+            // the raw Mobile and lets the runtime bind to ZuluContent's
+            // PlayerMobile parameter.
+            try
             {
-                var beheld = World.FindEntity<PlayerMobile>((Serial)reader.ReadUInt32());
-
-                if (beheld != null)
+                var mobile = state.Mobile;
+                if (mobile != null)
                 {
-                    var beholder = (PlayerMobile)state.Mobile;
-                    EventSink.InvokeVirtueGumpRequest(beholder, beheld);
+                    System.Reflection.Assembly zuluAsm = null;
+                    foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        if (asm.GetName().Name == "ZuluContent")
+                        {
+                            zuluAsm = asm;
+                            break;
+                        }
+                    }
+
+                    var refresh = zuluAsm?.GetType("Server.Gumps.MyInfoGump")?.GetMethod(
+                        "RefreshGump",
+                        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public
+                    );
+
+                    refresh?.Invoke(null, new object[] { mobile, -1 });
                 }
             }
-            else
+            catch
             {
-                var beheld = World.FindMobile(serial);
-
-                if (beheld != null)
-                {
-                    EventSink.InvokeVirtueItemRequest((PlayerMobile)state.Mobile, beheld, buttonId);
-                }
+                // Never let a reflection failure here break the gump pipeline.
             }
         }
     }
