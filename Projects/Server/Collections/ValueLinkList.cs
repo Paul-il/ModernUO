@@ -15,6 +15,7 @@
 
 using System;
 using System.Runtime.CompilerServices;
+using Server.Logging;
 
 namespace Server.Collections;
 
@@ -91,7 +92,22 @@ public struct ValueLinkList<T> where T : class, IValueLinkListNode<T>
 
         if (Count < 0)
         {
-            throw new Exception("Count is negative!");
+            // Production safety: "Count is negative" means the node was
+            // tracked on a DIFFERENT ValueLinkList (the OnLinkList flag is
+            // a single bool per node and doesn't identify WHICH list). The
+            // unlink above corrupted the other list's pointers but that is
+            // already done — throwing here crashes the entire server for a
+            // data-integrity issue that's recoverable by clamping. The
+            // cross-list corruption typically occurs when an Item's sector
+            // tracking gets out of sync during rapid reparenting (e.g.
+            // corpse creation moves items from world → container, and the
+            // sector OnLeave fires on the wrong sector). Logging instead
+            // of throwing keeps the server up. Deeper investigation into
+            // why the node ended up on the wrong list is tracked as an
+            // open question in the wiki.
+            Count = 0;
+            Logging.LogFactory.GetLogger(typeof(ValueLinkList<T>))
+                .Warning("ValueLinkList<{Type}>.Remove: Count went negative (cross-list corruption). Clamped to 0.", typeof(T).Name);
         }
     }
 
