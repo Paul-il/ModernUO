@@ -38,11 +38,22 @@ public partial class BankBox : Container
 
         if (Owner != null)
         {
+            var lang = Owner.Language;
+            var isRu = !string.IsNullOrEmpty(lang) &&
+                       (lang.StartsWith("RUS", System.StringComparison.OrdinalIgnoreCase) ||
+                        lang.Equals("RU", System.StringComparison.OrdinalIgnoreCase) ||
+                        lang.StartsWith("UKR", System.StringComparison.OrdinalIgnoreCase) ||
+                        lang.StartsWith("BEL", System.StringComparison.OrdinalIgnoreCase));
+
+            var text = isRu
+                ? $"В банке {TotalItems} предметов, {TotalWeight} камней"
+                : $"Bank container has {TotalItems} items, {TotalWeight} stones";
+
             Owner.PrivateOverheadMessage(
                 MessageType.Regular,
                 0x3B2,
                 true,
-                $"Bank container has {TotalItems} items, {TotalWeight} stones",
+                text,
                 Owner.NetState
             );
 
