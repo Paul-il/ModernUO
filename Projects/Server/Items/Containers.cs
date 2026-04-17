@@ -26,6 +26,11 @@ public partial class BankBox : Container
 
     public static bool SendDeleteOnClose { get; set; }
 
+    // Hook that resolves the player's effective language preference (Options.Language-aware).
+    // ZuluContent registers this at startup so the bank overhead respects the options gump,
+    // not just the client-reported language. Falls back to Mobile.Language if unset.
+    public static System.Func<Mobile, string> ResolveLanguage { get; set; }
+
     public void Open()
     {
         if (!ServerFeatureFlags.BankAccess && Owner?.AccessLevel < AccessLevel.Administrator)
@@ -38,7 +43,7 @@ public partial class BankBox : Container
 
         if (Owner != null)
         {
-            var lang = Owner.Language;
+            var lang = ResolveLanguage?.Invoke(Owner) ?? Owner.Language;
             var isRu = !string.IsNullOrEmpty(lang) &&
                        (lang.StartsWith("RUS", System.StringComparison.OrdinalIgnoreCase) ||
                         lang.Equals("RU", System.StringComparison.OrdinalIgnoreCase) ||
