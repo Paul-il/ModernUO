@@ -48,3 +48,28 @@
 
 # BuildTool native binaries (downloaded from GitHub Releases)
 /tools/
+
+# Zuluhotel shard runtime data (belongs to shard repo, not ModernUO upstream)
+/Distribution/Configuration/
+/Distribution/LocalState/
+/Distribution/ArenaTrajectories*/
+/Distribution/__w.tmp
+/Distribution/*.tmp
+/Distribution/py_*.txt
+/Distribution/calibration_*
+/Distribution/Data/Binary/
+/Distribution/Data/Cliloc.enu
+/Distribution/Data/Common.map
+/Distribution/Data/Counselor/
+/Distribution/Data/Guides/
+/Distribution/Data/Localization/
+/Distribution/Data/Spawns/
+/Distribution/Data/Decoration/Felucca/
+/Distribution/Data/Locations/shandalaar.json
+/Distribution/Data/expansion.json
+/Distribution/Data/items.json
+/Distribution/Data/mobiles.json
+/Distribution/Data/models.txt
+/Distribution/Data/objects.json
+/Distribution/Data/shrink.cfg
+/Distribution/Data/timezones.json
