@@ -287,7 +287,9 @@ public static class World
 
         WorldState = WorldState.Saving;
 
-        Broadcast(0x35, true, "The world is saving, please wait.");
+        // Core "The world is saving, please wait." broadcast suppressed.
+        // ZuluContent/WorldSaves/AutoSave.cs brackets the save with its own bilingual
+        // "[СЕРВЕР]: Сохранение состояния мира." / "Мир сохранён." messages.
 
         logger.Information("Saving world");
 
@@ -321,7 +323,9 @@ public static class World
             var duration = watch.Elapsed.TotalSeconds;
             logger.Information("Saving world {Status} ({Duration:F2} seconds)", "done", duration);
 
-            Broadcast(0x35, true, $"World save completed in {duration:F2} seconds.");
+            // Core "World save completed in X seconds." broadcast suppressed.
+            // ZuluContent's AutoSave wrapper broadcasts localized "Мир сохранён." after World.Save() returns.
+            // Duration stays in logs for operators.
         }
         else
         {
