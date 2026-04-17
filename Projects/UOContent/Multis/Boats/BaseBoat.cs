@@ -331,8 +331,8 @@ namespace Server.Multis
             packKey.MaxRange = 10;
             bankKey.MaxRange = 10;
 
-            packKey.Name = "a ship key";
-            bankKey.Name = "a ship key";
+            packKey.Name = "корабельный ключ|a ship key";
+            bankKey.Name = "корабельный ключ|a ship key";
 
             var box = m.BankBox;
 
