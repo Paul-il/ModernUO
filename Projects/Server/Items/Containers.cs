@@ -57,7 +57,7 @@ public partial class BankBox : Container
             Owner.PrivateOverheadMessage(
                 MessageType.Regular,
                 0x3B2,
-                true,
+                false,
                 text,
                 Owner.NetState
             );
