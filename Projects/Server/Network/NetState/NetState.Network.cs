@@ -390,7 +390,7 @@ public partial class NetState
                         // Verify generation via object identity to avoid stale completion issues
                         if (nsRecv != null && nsRecv._socket == evt.Socket)
                         {
-                            nsRecv.NextActivityCheck = curTicks + 30000;
+                            nsRecv.NextActivityCheck = curTicks + 90000;
                             HandleDataReceived(nsRecv, evt.BytesTransferred);
                         }
                         break;
@@ -403,7 +403,7 @@ public partial class NetState
                         if (nsSend != null && nsSend._socket == evt.Socket)
                         {
                             // Update activity check on successful send
-                            nsSend.NextActivityCheck = curTicks + 30000;
+                            nsSend.NextActivityCheck = curTicks + 90000;
                         }
                         break;
                     }

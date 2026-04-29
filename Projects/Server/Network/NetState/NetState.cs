@@ -111,7 +111,7 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
         HuePickers = [];
         Menus = [];
         Trades = [];
-        NextActivityCheck = Core.TickCount + 30000;
+        NextActivityCheck = Core.TickCount + 90000;
         ConnectedOn = Core.Now;
         _toString = address?.ToString() ?? "(error)";
 
