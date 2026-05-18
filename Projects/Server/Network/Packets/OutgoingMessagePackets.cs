@@ -18,6 +18,7 @@ using System.Buffers;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Server.Prompts;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -79,7 +80,8 @@ public static class OutgoingMessagePackets
         writer.Write((short)hue);
         writer.Write((short)font);
         writer.Write(number);
-        writer.WriteLatin1(name, 30);
+        // Bilingual name slot: protocol-fixed 30-byte Latin-1; write English half of "ru|en" to avoid '?'.
+        writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
         writer.WriteLittleUniNull(args);
 
         writer.WritePacketLength();
@@ -139,8 +141,9 @@ public static class OutgoingMessagePackets
         writer.Write((short)font);
         writer.Write(number);
         writer.Write((byte)affixType);
-        writer.WriteLatin1(name, 30);
-        writer.WriteLatin1Null(affix);
+        // Bilingual name slot: protocol-fixed 30-byte Latin-1; write English half of "ru|en" to avoid '?'.
+        writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
+        writer.WriteLatin1Null(BilingualName.AsciiSafe(affix));
         writer.WriteBigUniNull(args);
 
         writer.WritePacketLength();
@@ -214,13 +217,17 @@ public static class OutgoingMessagePackets
         writer.Write((short)font);
         if (ascii)
         {
-            writer.WriteLatin1(name, 30);
-            writer.WriteLatin1Null(text);
+            // ASCII speech (0x1C) — both name and body slots are Latin-1.
+            // Strip bilingual to English half so neither becomes '?'.
+            writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
+            writer.WriteLatin1Null(BilingualName.AsciiSafe(text));
         }
         else
         {
             writer.WriteAscii(lang, 4);
-            writer.WriteLatin1(name, 30);
+            // Unicode speech (0xAE) — name slot is still Latin-1 (protocol-fixed).
+            // Body is Unicode and carries the locale-appropriate text as-is.
+            writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
             writer.WriteBigUniNull(text);
         }
 

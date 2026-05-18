@@ -15,6 +15,7 @@
 
 using System.Buffers;
 using Server.Items;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -45,7 +46,8 @@ public static class OutgoingSecureTradePackets
         writer.Write(second.Serial);
         writer.Write(true);
 
-        writer.WriteLatin1(name ?? "", 30);
+        // Trade partner name slot is Latin-1 (protocol-fixed 30 bytes); strip bilingual to English half.
+        writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
 
         ns.Send(writer.Span);
     }

@@ -17,6 +17,7 @@ using System;
 using System.Buffers;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -309,7 +310,8 @@ public static class OutgoingMobilePackets
         writer.Write((byte)0x98); // Packet ID
         writer.Write((ushort)37);
         writer.Write(m.Serial);
-        writer.WriteLatin1(m.Name ?? "", 29);
+        // Bilingual name slot: protocol-fixed 29-byte Latin-1; write English half of "ru|en".
+        writer.WriteLatin1(BilingualName.AsciiSafe(m.Name), 29);
         writer.Write((byte)0); // Null terminator
 
         ns.Send(writer.Span);
@@ -507,7 +509,8 @@ public static class OutgoingMobilePackets
         writer.Write((byte)0x11); // Packet ID
         writer.Seek(2, SeekOrigin.Current);
         writer.Write(beheld.Serial);
-        writer.WriteLatin1(name, 30);
+        // Bilingual name slot: protocol-fixed 30-byte Latin-1 healthbar mob name.
+        writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
         writer.WriteAttribute(beheld.HitsMax, beheld.Hits, version == 0, true);
         writer.Write(canBeRenamed);
         writer.Write((byte)version);

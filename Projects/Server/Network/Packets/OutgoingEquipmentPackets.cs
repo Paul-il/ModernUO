@@ -16,6 +16,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -45,6 +46,8 @@ public static class OutgoingEquipmentPackets
         }
 
         crafterName = crafterName.DefaultIfNullOrEmpty("");
+        // Crafter name is Latin-1 (variable length); strip bilingual to English half.
+        crafterName = BilingualName.AsciiSafe(crafterName);
 
         var length = 17 +
                      (crafterName.Length > 0 ? 6 + crafterName.Length : 0) +

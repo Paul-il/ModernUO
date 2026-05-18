@@ -18,6 +18,7 @@ using System.Buffers;
 using System.IO;
 using Server.Menus.ItemLists;
 using Server.Menus.Questions;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -40,8 +41,9 @@ public static class OutgoingMenuPackets
             return;
         }
 
-        var question = menu.Question?.Trim();
-        var questionLength = question?.Length ?? 0;
+        // Menu text is Latin-1 (length-prefixed); strip bilingual to English half BEFORE measuring length.
+        var question = BilingualName.AsciiSafe(menu.Question?.Trim());
+        var questionLength = question.Length;
 
         var entries = menu.Entries;
         int entriesLength = (byte)entries.Length;
@@ -60,7 +62,7 @@ public static class OutgoingMenuPackets
 
         writer.Write((byte)questionLength);
 
-        if (question != null)
+        if (questionLength > 0)
         {
             writer.WriteLatin1(question);
         }
@@ -74,16 +76,15 @@ public static class OutgoingMenuPackets
             writer.Write((ushort)e.ItemID);
             writer.Write((short)e.Hue);
 
-            var name = e.Name?.Trim();
+            var name = BilingualName.AsciiSafe(e.Name?.Trim());
 
-            if (name == null)
+            if (name.Length == 0)
             {
                 writer.Write((byte)0);
             }
             else
             {
-                var nameLength = name.Length;
-                writer.Write((byte)nameLength);
+                writer.Write((byte)name.Length);
                 writer.WriteLatin1(name);
             }
         }
@@ -99,8 +100,9 @@ public static class OutgoingMenuPackets
             return;
         }
 
-        var question = menu.Question?.Trim();
-        var questionLength = question?.Length ?? 0;
+        // Menu text is Latin-1 (length-prefixed); strip bilingual to English half BEFORE measuring length.
+        var question = BilingualName.AsciiSafe(menu.Question?.Trim());
+        var questionLength = question.Length;
 
         var answers = menu.Answers;
         int answersLength = (byte)answers.Length;
@@ -118,7 +120,7 @@ public static class OutgoingMenuPackets
         writer.Write((ushort)0);
         writer.Write((byte)questionLength);
 
-        if (question != null)
+        if (questionLength > 0)
         {
             writer.WriteLatin1(question);
         }
@@ -129,16 +131,15 @@ public static class OutgoingMenuPackets
         {
             writer.Write(0);
 
-            var answer = answers[i]?.Trim();
+            var answer = BilingualName.AsciiSafe(answers[i]?.Trim());
 
-            if (answer == null)
+            if (answer.Length == 0)
             {
                 writer.Write((byte)0);
             }
             else
             {
-                var nameLength = answer.Length;
-                writer.Write((byte)nameLength);
+                writer.Write((byte)answer.Length);
                 writer.WriteLatin1(answer);
             }
         }

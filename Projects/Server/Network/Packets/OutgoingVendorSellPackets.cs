@@ -17,6 +17,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -53,6 +54,8 @@ public static class OutgoingVendorSellPackets
             writer.Write((ushort)sis.Price);
 
             var name = (item.Name?.Trim()).DefaultIfNullOrEmpty(sis.Name ?? "");
+            // Vendor sell-list name is Latin-1 (length-prefixed); strip bilingual to English half.
+            name = BilingualName.AsciiSafe(name);
 
             writer.Write((ushort)name.Length);
             writer.WriteLatin1(name);

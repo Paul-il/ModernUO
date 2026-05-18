@@ -16,6 +16,7 @@
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -72,12 +73,15 @@ public static class OutgoingPlayerPackets
         body ??= "";
         footer ??= "";
 
-        var length = 12 + header.Length + footer.Length * 2 + body.Length * 2;
+        // Header is Latin-1 (protocol-fixed); strip bilingual "ru|en" to English half.
+        // Footer and body are Unicode and carry the locale-appropriate text as-is.
+        var safeHeader = BilingualName.AsciiSafe(header);
+        var length = 12 + safeHeader.Length + footer.Length * 2 + body.Length * 2;
         var writer = new SpanWriter(stackalloc byte[length]);
         writer.Write((byte)0xB8); // Packet ID
         writer.Write((ushort)length);
         writer.Write(m);
-        writer.WriteLatin1Null(header);
+        writer.WriteLatin1Null(safeHeader);
         writer.WriteBigUniNull(footer);
         writer.WriteBigUniNull(body);
 
@@ -264,7 +268,8 @@ public static class OutgoingPlayerPackets
         var writer = new SpanWriter(stackalloc byte[66]);
         writer.Write((byte)0x88); // Packet ID
         writer.Write(m);
-        writer.WriteLatin1(title, 60);
+        // Paperdoll title is Latin-1 (protocol-fixed 60 bytes); strip bilingual to English half.
+        writer.WriteLatin1(BilingualName.AsciiSafe(title), 60);
         writer.Write(flags);
 
         ns.Send(writer.Span);
@@ -293,7 +298,8 @@ public static class OutgoingPlayerPackets
             return;
         }
 
-        text ??= "";
+        // Scroll/tip body is Latin-1 (protocol-fixed); strip bilingual to English half.
+        text = BilingualName.AsciiSafe(text);
 
         var length = 10 + text.Length;
         var writer = new SpanWriter(stackalloc byte[length]);

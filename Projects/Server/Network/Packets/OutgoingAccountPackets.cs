@@ -20,6 +20,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Server.Accounting;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -91,7 +92,8 @@ public static class OutgoingAccountPackets
                 var name = (m.RawName?.Trim()).DefaultIfNullOrEmpty("-no name-");
 
                 count++;
-                writer.WriteLatin1(name, 30);
+                // Char list slot is Latin-1 (protocol-fixed 30 bytes); strip bilingual to English half.
+                writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
                 writer.Clear(30); // Password (empty)
             }
         }
@@ -278,7 +280,8 @@ public static class OutgoingAccountPackets
             else
             {
                 var name = (m.RawName?.Trim()).DefaultIfNullOrEmpty("-no name-");
-                writer.WriteLatin1(name, 30);
+                // Char list slot is Latin-1 (protocol-fixed 30 bytes); strip bilingual to English half.
+                writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
                 writer.Clear(30); // password
             }
         }
@@ -353,7 +356,8 @@ public static class OutgoingAccountPackets
                 occupiedSlotSerials[occupiedCount] = unchecked((int)m.Serial.Value);
                 occupiedSlotNames[occupiedCount] = name;
                 occupiedCount++;
-                writer.WriteLatin1(name, 30);
+                // Char list slot is Latin-1 (protocol-fixed 30 bytes); strip bilingual to English half.
+                writer.WriteLatin1(BilingualName.AsciiSafe(name), 30);
                 writer.Clear(30); // password
             }
         }
@@ -365,8 +369,9 @@ public static class OutgoingAccountPackets
             var ci = cityInfo[i];
 
             writer.Write((byte)i);
-            writer.WriteLatin1(ci.City, textLength);
-            writer.WriteLatin1(ci.Building, textLength);
+            // City / building strings are Latin-1 (protocol-fixed); strip bilingual to English half.
+            writer.WriteLatin1(BilingualName.AsciiSafe(ci.City), textLength);
+            writer.WriteLatin1(BilingualName.AsciiSafe(ci.Building), textLength);
             if (client70130)
             {
                 writer.Write(ci.X);
@@ -502,7 +507,8 @@ public static class OutgoingAccountPackets
             var si = info[i];
 
             writer.Write((ushort)i);
-            writer.WriteLatin1(si.Name, 32);
+            // Server name is Latin-1 (protocol-fixed 32 bytes); strip bilingual to English half.
+            writer.WriteLatin1(BilingualName.AsciiSafe(si.Name), 32);
             writer.Write((byte)si.FullPercent);
             writer.Write((sbyte)si.TimeZone);
             // UO only supports IPv4

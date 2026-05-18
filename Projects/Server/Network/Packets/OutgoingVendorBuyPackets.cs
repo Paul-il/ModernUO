@@ -16,6 +16,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using Server.Items;
+using Server.Text;
 
 namespace Server.Network;
 
@@ -81,10 +82,14 @@ public static class OutgoingVendorBuyPackets
             return;
         }
 
+        // Pre-strip bilingual descriptions so length math matches what we actually write.
+        // Vendor buy descriptions are Latin-1 (protocol-fixed); English half avoids '?'.
+        var safeDescs = new string[list.Count];
         var length = 8;
         for (var i = 0; i < list.Count; i++)
         {
-            length += 6 + list[i].Description?.Length ?? 0;
+            safeDescs[i] = BilingualName.AsciiSafe(list[i].Description);
+            length += 6 + safeDescs[i].Length;
         }
 
         var writer = new SpanWriter(stackalloc byte[length]);
@@ -99,7 +104,7 @@ public static class OutgoingVendorBuyPackets
 
             writer.Write(bis.Price);
 
-            var desc = bis.Description ?? "";
+            var desc = safeDescs[i];
 
             writer.Write((byte)(desc.Length + 1));
             writer.WriteLatin1Null(desc);
