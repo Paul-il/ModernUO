@@ -18,6 +18,9 @@
 /Distribution/Archives
 /Distribution/Backups
 /Distribution/Saves
+/Distribution/Saves-*
+/Distribution/Saves.*
+/Distribution/Distribution/
 /Distribution/docs
 /Distribution/temp
 /Distribution/*.dylib
