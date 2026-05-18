@@ -21,6 +21,7 @@
 /Distribution/Saves-*
 /Distribution/Saves.*
 /Distribution/Distribution/
+/Distribution/Data/Items/ItemBounds.bin
 /Distribution/docs
 /Distribution/temp
 /Distribution/*.dylib
