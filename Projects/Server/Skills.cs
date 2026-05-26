@@ -64,7 +64,7 @@ public enum SkillName
     Mining = 45,
     Meditation = 46,
     Stealth = 47,
-    RemoveTrap = 48,
+    Trap = 48,
     Necromancy = 49,
     Focus = 50,
     Chivalry = 51,
@@ -737,7 +737,7 @@ public class Skills
     public Skill Stealth => this[SkillName.Stealth];
 
     [CommandProperty(AccessLevel.Counselor, canModify: true)]
-    public Skill RemoveTrap => this[SkillName.RemoveTrap];
+    public Skill Trap => this[SkillName.Trap];
 
     [CommandProperty(AccessLevel.Counselor, canModify: true)]
     public Skill Necromancy => this[SkillName.Necromancy];

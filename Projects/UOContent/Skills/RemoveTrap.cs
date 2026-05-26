@@ -9,7 +9,7 @@ namespace Server.SkillHandlers
     {
         public static void Initialize()
         {
-            SkillInfo.Table[(int)SkillName.RemoveTrap].Callback = OnUse;
+            SkillInfo.Table[(int)SkillName.Trap].Callback = OnUse;
         }
 
         public static TimeSpan OnUse(Mobile m)
@@ -58,7 +58,7 @@ namespace Server.SkillHandlers
 
                     from.PlaySound(0x241);
 
-                    if (from.CheckTargetSkill(SkillName.RemoveTrap, targ, targ.TrapPower, targ.TrapPower + 30))
+                    if (from.CheckTargetSkill(SkillName.Trap, targ, targ.TrapPower, targ.TrapPower + 30))
                     {
                         targ.TrapPower = 0;
                         targ.TrapLevel = 0;
@@ -93,7 +93,7 @@ namespace Server.SkillHandlers
                     }
                     else
                     {
-                        if (Core.ML && isOwner || from.CheckTargetSkill(SkillName.RemoveTrap, trap, 80.0, 100.0) &&
+                        if (Core.ML && isOwner || from.CheckTargetSkill(SkillName.Trap, trap, 80.0, 100.0) &&
                             from.CheckTargetSkill(SkillName.Tinkering, trap, 80.0, 100.0))
                         {
                             from.PrivateOverheadMessage(

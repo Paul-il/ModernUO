@@ -259,7 +259,7 @@ namespace Server.Mobiles
         {
             SkillName.ArmsLore, SkillName.Begging, SkillName.Discordance, SkillName.Forensics,
             SkillName.Inscribe, SkillName.ItemID, SkillName.Meditation, SkillName.Peacemaking,
-            SkillName.Provocation, SkillName.RemoveTrap, SkillName.SpiritSpeak, SkillName.Stealing,
+            SkillName.Provocation, SkillName.Trap, SkillName.SpiritSpeak, SkillName.Stealing,
             SkillName.TasteID
         };
 

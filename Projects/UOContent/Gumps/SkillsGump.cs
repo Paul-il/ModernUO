@@ -533,7 +533,7 @@ namespace Server.Gumps
                     SkillName.Begging,
                     SkillName.DetectHidden,
                     SkillName.Hiding,
-                    SkillName.RemoveTrap,
+                    SkillName.Trap,
                     SkillName.Poisoning,
                     SkillName.Stealing,
                     SkillName.Stealth,
