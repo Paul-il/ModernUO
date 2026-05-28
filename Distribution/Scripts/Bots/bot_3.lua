@@ -243,6 +243,14 @@ local function master_tick()
 
     ensure_master_tools()
 
+    -- Share spare tools with toolless teammates (bootstrap)
+    local pickaxes_given = bot.share_tool("pickaxe") or 0
+    local hatchets_given = bot.share_tool("hatchet") or 0
+    if pickaxes_given > 0 or hatchets_given > 0 then
+        bot.log(string.format("Shared with team: %d pickaxes, %d hatchets",
+            pickaxes_given, hatchets_given))
+    end
+
     if try_levelup_quest() then return end
 
     local target_skill, target_val = pick_target_skill()
