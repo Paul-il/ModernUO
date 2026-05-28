@@ -102,10 +102,27 @@ local function walk_to_bot_zone(target_index)
     end
 end
 
+-- 2026-05-28 operator spec: "минимум 100 за раз". Below this threshold
+-- the courier-cycle cost (two long walks + smelt/bank wait) outweighs the
+-- delivered throughput. Supporters keep accumulating; Rai only acts on
+-- bulk loads worth shuttling.
+local BULK_MIN = 100
+
 -- One full cycle: pick most-loaded supporter, take materials, deliver to focus.
 local function run_delivery_cycle(material)
     local target = bot.find_supporter_with_most(material)
     if target == nil or target < 0 then return false end
+
+    -- Skip if the most-loaded supporter doesn't have a bulk-worthy load.
+    -- Avoids "Rai bouncing every 20 logs" thrash the operator flagged.
+    local available = bot.count_bot_material(target, material) or 0
+    if available < BULK_MIN then
+        if bot.state.idle_rounds % 10 == 1 then
+            bot.log(string.format("Bot#%d has only %d %s (need %d) — wait for accumulation",
+                target, available, material, BULK_MIN))
+        end
+        return false
+    end
 
     bot.state.phase = "pickup"
     bot.log(string.format("Pickup cycle: %s from Bot#%d", material, target))
