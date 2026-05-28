@@ -89,13 +89,16 @@ local function estimate_material_for_plus_one(skill_value)
 end
 
 local function can_train_skill(skill)
-    -- INGOT skills need pickaxe to mine (or team ingots delivered)
+    -- 2026-05-28: previously this returned true if bot had the gathering
+    -- TOOL even with no material — picked skills that couldn't actually
+    -- craft. Now requires either (a) material in pack OR (b) team has
+    -- material ready (deliverable via Rai). Tool alone isn't enough —
+    -- master can't progress without material to consume.
     if INGOT_SKILLS[skill] then
-        return bot.has_pickaxe() or bot.count_ingots() >= 4
+        return bot.count_ingots() >= 4 or bot.team_material_count("blacksmith") >= 4
     end
-    -- LOG skills need hatchet to chop
     if LOG_SKILLS[skill] then
-        return bot.has_hatchet() or bot.count_logs() >= 4
+        return bot.count_logs() >= 4 or bot.team_material_count("carpentry") >= 4
     end
     return true
 end
@@ -289,10 +292,38 @@ local function master_tick()
     if count_material(target_skill) >= 3 then
         do_crafting(target_skill)
     else
+        -- 2026-05-28: don't self-gather if Rai is delivering. Master ran
+        -- to forest with no hatchet, blacklisted GoChop, idle-loop for 5 min.
+        -- Wait at forge for Rai instead. Only self-gather if:
+        --   (a) supporters truly empty (team_count < 4 AND no bootstrap visible)
+        --   (b) AND master has the required tool
         local team_count = bot.team_material_count(target_skill)
-        bot.log(string.format("Need %s: my pack empty (team=%d), gathering myself",
-            target_skill, team_count))
-        gather_for(target_skill)
+        local has_tool = false
+        if INGOT_SKILLS[target_skill] then has_tool = bot.has_pickaxe()
+        elseif LOG_SKILLS[target_skill] then has_tool = bot.has_hatchet()
+        else has_tool = true end
+
+        if team_count >= 4 then
+            -- Rai will deliver. Wait at forge.
+            if bot.state.master_tick_n % 10 == 1 then
+                bot.log(string.format("Need %s: pack empty, team=%d ready — waiting for Rai at forge",
+                    target_skill, team_count))
+            end
+            bot.walk_to("forge")
+            wait(3)
+        elseif has_tool then
+            bot.log(string.format("Need %s: pack empty (team=%d), no delivery — gathering myself",
+                target_skill, team_count))
+            gather_for(target_skill)
+        else
+            -- No team material, no tool. Try to craft tool first.
+            if bot.state.master_tick_n % 10 == 1 then
+                bot.log(string.format("Need %s: no team material, no tool — waiting (will craft tool if get ingots)",
+                    target_skill))
+            end
+            bot.walk_to("forge")
+            wait(3)
+        end
     end
 
     bot.use_arms_lore()
@@ -429,16 +460,38 @@ local function supporter_tick()
     elseif cur == "logs" then
         if bot.has_hatchet() then
             gather_logs()
-        elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
-            bot.log("Self-crafting hatchet")
+        elseif bot.count_ingots() >= 2 and bot.get_skill("tinkering") >= 30 then
+            -- 2026-05-28: hatchet recipe needs 2 ingots (was gated at 4 — same
+            -- as pickaxe — which left supporters with 2-3 ingots stranded).
+            bot.log("Self-crafting hatchet (ingots=" .. bot.count_ingots() .. ")")
             bot.walk_to("forge")
             bot.craft("tinkering", "hatchet")
             wait(2)
-        else
-            -- Wait at forge for share_tool. No fallback to mining when
-            -- focus needs logs — same principle as the ingots branch.
+        elseif bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
+            -- 2026-05-28 bootstrap: supporter has pickaxe but no hatchet AND
+            -- no ingots → mine briefly to bootstrap the hatchet. Short
+            -- session (5 ore) instead of full gather_ore (30 ore) so we
+            -- return to tick-top quickly to check ingot count and craft.
+            -- Mine-exhausted areas were trapping bots inside the 30-ore
+            -- mine_until predicate, never reaching the smelt/craft phase.
             if bot.state.sup_tick_n % 10 == 1 then
-                bot.log("No hatchet — waiting at forge (focus needs logs, ingots would be useless)")
+                bot.log("Bootstrap: mining briefly for ingots to craft hatchet")
+            end
+            bot.walk_to("mine")
+            if check_stuck() then recover_from_stuck(); return end
+            bot.mine_until(function()
+                return bot.count_ore() >= 5 or bot.is_overweight()
+            end)
+            if bot.count_ore() > 0 then
+                bot.walk_to("forge")
+                wait(2)
+                bot.smelt_all()
+                wait(2)
+            end
+        else
+            -- True deadlock: no hatchet, no ingots, no pickaxe. Wait for share_tool.
+            if bot.state.sup_tick_n % 10 == 1 then
+                bot.log("No hatchet, no pickaxe — waiting at forge for share_tool")
             end
             bot.walk_to("forge")
             wait(3)

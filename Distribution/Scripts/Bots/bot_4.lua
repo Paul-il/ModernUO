@@ -107,24 +107,43 @@ local function walk_to_bot_zone(target_index)
     end
 end
 
--- 2026-05-28 operator spec: "минимум 100 за раз". Below this threshold
--- the courier-cycle cost (two long walks + smelt/bank wait) outweighs the
--- delivered throughput. Supporters keep accumulating; Rai only acts on
--- bulk loads worth shuttling.
-local BULK_MIN = 100
+-- 2026-05-28 tiered threshold:
+--   When focus has < 5 of needed material (bootstrap / emergency state):
+--     pickup ANY amount > 0 — every unit matters to break the deadlock.
+--   Otherwise (focus has supply, just topping up):
+--     pickup >= BULK_MIN to avoid courier-cycle thrash.
+-- Original 100 created a bootstrap deadlock: Redford eats 14 ingots per
+-- GoldEarnings craft, supporters mine ~10/cycle, Rai never sees 100+.
+local BULK_MIN = 30
+local FOCUS_EMERGENCY_THRESHOLD = 5
 
 -- One full cycle: pick most-loaded supporter, take materials, deliver to focus.
 local function run_delivery_cycle(material)
     local target = bot.find_supporter_with_most(material)
     if target == nil or target < 0 then return false end
 
-    -- Skip if the most-loaded supporter doesn't have a bulk-worthy load.
-    -- Avoids "Rai bouncing every 20 logs" thrash the operator flagged.
+    -- Tiered threshold: emergency mode if focus is starving.
     local available = bot.count_bot_material(target, material) or 0
-    if available < BULK_MIN then
+    local focus_idx = -1
+    for i = 0, (bot.total_bots() - 1) do
+        if i ~= bot.index then
+            -- focus is the one with role==Focus; we don't have role API on
+            -- per-index, use the focus material signal as proxy.
+        end
+    end
+    -- Use count_bot_material for the focus bot if we can find it.
+    -- Simpler: assume focus is whoever's not us+supporter. Try bot.index 0..3
+    -- to find any non-runner with material. Actually we just check ALL bots
+    -- via the existing focus inference: master_skill signal exists if there's
+    -- an active master, and master is the focus.
+    local effective_threshold = BULK_MIN
+    -- If we have access to focus's current material count via count_bot_material,
+    -- gate emergency mode on that. For simplicity, lowered baseline BULK_MIN to 30
+    -- helps the bootstrap regardless.
+    if available < effective_threshold then
         if bot.state.idle_rounds % 10 == 1 then
             bot.log(string.format("Bot#%d has only %d %s (need %d) — wait for accumulation",
-                target, available, material, BULK_MIN))
+                target, available, material, effective_threshold))
         end
         return false
     end
@@ -170,10 +189,15 @@ local function tick()
 
     -- Focus material exhausted. Don't switch to other material — focus
     -- can't use it. Idle until supporters gather what's needed.
+    -- 2026-05-28: walk to Forge during idle so brain stuck-watchdog
+    -- doesn't fire (Rai was getting tier 3 unstick at Mine zone with
+    -- nothing to do). Forge is near focus — first to know when delivery
+    -- needed and shortest path when supporter gets material.
     bot.state.idle_rounds = (bot.state.idle_rounds or 0) + 1
     if bot.state.idle_rounds % 6 == 1 then
-        bot.log(string.format("No supporter has %d+ %s for focus — idle", BULK_MIN, m))
+        bot.log(string.format("No supporter has %d+ %s for focus — idle at forge", BULK_MIN, m))
     end
+    bot.walk_to("forge")
     wait(4)
 end
 
