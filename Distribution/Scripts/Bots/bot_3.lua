@@ -352,18 +352,30 @@ local function gather_logs()
 end
 
 local function deliver_to_master()
-    -- Direct transfer via give_to_focus API (bypasses broken runner).
-    -- Low threshold (2+) to ensure pickaxe-bootstrap when ingots scarce.
+    -- KEEP enough ingots/logs for self-tooling before delivering excess.
+    -- If supporter lacks pickaxe and has tinkering skill, save 4 ingots
+    -- for self-craft. Same for hatchet. After self-tools secured, deliver
+    -- the excess to master via direct give_to_focus (bypasses broken runner).
+    local need_self_ingots = 0
+    if not bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
+        need_self_ingots = need_self_ingots + 4
+    end
+    if not bot.has_hatchet() and bot.get_skill("tinkering") >= 30 then
+        need_self_ingots = need_self_ingots + 4
+    end
+
     local sent_ingots = 0
     local sent_logs = 0
-    if bot.count_ingots() >= 2 then
-        sent_ingots = bot.give_to_focus("ingots", 100) or 0
+    local excess_ingots = bot.count_ingots() - need_self_ingots
+    if excess_ingots >= 2 then
+        sent_ingots = bot.give_to_focus("ingots", excess_ingots) or 0
     end
     if bot.count_logs() >= 5 then
         sent_logs = bot.give_to_focus("logs", 100) or 0
     end
     if sent_ingots > 0 or sent_logs > 0 then
-        bot.log(string.format("Delivered to master: %d ingots, %d logs", sent_ingots, sent_logs))
+        bot.log(string.format("Delivered to master: %d ingots, %d logs (kept %d for self-tools)",
+            sent_ingots, sent_logs, need_self_ingots))
     end
 end
 
@@ -402,23 +414,41 @@ local function supporter_tick()
         if bot.has_pickaxe() then
             gather_ore()
         else
-            -- No pickaxe — wait at forge for tinkerer-supporter to make one
-            bot.log("Need pickaxe to mine — waiting at forge")
-            bot.walk_to("forge")
-            wait(5)
-            -- If a tinkerer-bot has ingots, try to craft self pickaxe
+            -- No pickaxe — try self-craft first (tinkering >= 30 + 4 ingots).
+            -- If can't self-craft, chop logs instead (still productive for team).
             if bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
-                bot.log("Crafting self-pickaxe")
+                bot.log("Self-crafting pickaxe")
+                bot.walk_to("forge")
                 bot.craft("tinkering", "pickaxe")
                 wait(2)
+            elseif bot.has_hatchet() then
+                -- Can't mine, but can chop — still useful (logs go to master if log-skill)
+                if bot.state.sup_tick_n % 10 == 1 then
+                    bot.log("No pickaxe — chopping logs while waiting for tools")
+                end
+                gather_logs()
+            else
+                -- No tools at all — wait at forge for someone to share
+                if bot.state.sup_tick_n % 10 == 1 then
+                    bot.log("No tools — waiting at forge for share_tool delivery")
+                end
+                bot.walk_to("forge")
+                wait(3)
             end
         end
     -- Master needs LOGS? All chop
     elseif cur == "logs" then
         if bot.has_hatchet() then
             gather_logs()
+        elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+            bot.log("Self-crafting hatchet")
+            bot.walk_to("forge")
+            bot.craft("tinkering", "hatchet")
+            wait(2)
         else
-            bot.log("Need hatchet — going to forge")
+            if bot.state.sup_tick_n % 10 == 1 then
+                bot.log("Need hatchet — waiting at forge")
+            end
             bot.walk_to("forge")
             wait(3)
         end
