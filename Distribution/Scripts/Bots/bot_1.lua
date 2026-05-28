@@ -406,34 +406,26 @@ local function supporter_tick()
             tostring(cur_material), cur))
     end
 
-    -- Master needs INGOTS? Try to participate in mining
+    -- 2026-05-28 operator rule: supporters NEVER gather material the focus
+    -- doesn't need. If master trains Tinkering (cur="ingots") and a supporter
+    -- has no pickaxe → wait or self-craft pickaxe, but NEVER chop logs.
+    -- Logs would just sit unused in supporter's pack while focus starves.
     if cur == "ingots" then
         if bot.has_pickaxe() then
             gather_ore()
+        elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+            bot.log("Self-crafting pickaxe")
+            bot.walk_to("forge")
+            bot.craft("tinkering", "pickaxe")
+            wait(2)
         else
-            -- No pickaxe — try self-craft first (tinkering >= 30 + 4 ingots).
-            -- If can't self-craft, chop logs instead (still productive for team).
-            if bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
-                bot.log("Self-crafting pickaxe")
-                bot.walk_to("forge")
-                bot.craft("tinkering", "pickaxe")
-                wait(2)
-            elseif bot.has_hatchet() then
-                -- Can't mine, but can chop — still useful (logs go to master if log-skill)
-                if bot.state.sup_tick_n % 10 == 1 then
-                    bot.log("No pickaxe — chopping logs while waiting for tools")
-                end
-                gather_logs()
-            else
-                -- No tools at all — wait at forge for someone to share
-                if bot.state.sup_tick_n % 10 == 1 then
-                    bot.log("No tools — waiting at forge for share_tool delivery")
-                end
-                bot.walk_to("forge")
-                wait(3)
+            -- Wait at forge for share_tool. Do NOT fall through to chopping.
+            if bot.state.sup_tick_n % 10 == 1 then
+                bot.log("No pickaxe — waiting at forge for share_tool (focus needs ingots, logs would be useless)")
             end
+            bot.walk_to("forge")
+            wait(3)
         end
-    -- Master needs LOGS? All chop
     elseif cur == "logs" then
         if bot.has_hatchet() then
             gather_logs()
@@ -443,15 +435,22 @@ local function supporter_tick()
             bot.craft("tinkering", "hatchet")
             wait(2)
         else
+            -- Wait at forge for share_tool. No fallback to mining when
+            -- focus needs logs — same principle as the ingots branch.
             if bot.state.sup_tick_n % 10 == 1 then
-                bot.log("Need hatchet — waiting at forge")
+                bot.log("No hatchet — waiting at forge (focus needs logs, ingots would be useless)")
             end
             bot.walk_to("forge")
             wait(3)
         end
-    -- Master needs CLOTH? Tailoring (rare path)
     else
-        gather_logs()  -- fallback chop
+        -- cur == "cloth" or unknown — supporters can't meaningfully help
+        -- with cloth pipeline (that's master's quest-based path). Wait.
+        if bot.state.sup_tick_n % 10 == 1 then
+            bot.log("Focus needs " .. tostring(cur) .. " — supporter can't help, waiting")
+        end
+        bot.walk_to("forge")
+        wait(3)
     end
 
     deliver_to_master()
