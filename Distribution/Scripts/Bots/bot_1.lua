@@ -366,11 +366,11 @@ local function deliver_to_master()
     end
 
     local excess_ingots = bot.count_ingots() - need_self_ingots
-    -- 2026-05-28 operator spec: "минимум 100 за раз". Runner only does
-    -- pickup runs that move ≥100 units — otherwise the courier overhead
-    -- (walk to bot, walk to forge) doesn't justify the throughput.
-    -- Supporters accumulate to the bulk threshold before signaling.
-    if excess_ingots >= 100 or bot.count_logs() >= 100 then
+    -- 2026-05-28 operator spec: "минимум 100 за раз" — but supporters with
+    -- broken mining (no tool, mine depleted) may never hit 100. Use a
+    -- tiered threshold: signal at 50 for bulk-cycle eligibility, runner
+    -- still gates on count_bot_material via its own 100/50 check.
+    if excess_ingots >= 50 or bot.count_logs() >= 50 then
         bot.signal("has_materials", tostring(bot.index))
         bot.request_runner("PickupResources")
     end

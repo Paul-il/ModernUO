@@ -72,14 +72,19 @@ local function recover_from_stuck()
     end
 end
 
--- Alternate between ingots and logs each delivery to keep both flowing.
-local function next_material()
-    if bot.state.material_focus == "ingots" then
-        bot.state.material_focus = "logs"
-    else
-        bot.state.material_focus = "ingots"
+-- 2026-05-28: focus-aware material selection. Read master_material signal
+-- (set by master_tick when picking current target skill). If focus is
+-- training Tinkering, master_material = "ingots" — Rai brings ingots,
+-- not logs. Avoids the bug where Rai shuttled 48 logs to a TK trainee
+-- who couldn't use them. Falls back to "ingots" if no signal yet.
+local function get_focus_material()
+    local sig = bot.check_signal("master_material")
+    if not sig then return "ingots" end
+    local m = tostring(sig)
+    if m == "logs" or m == "ingots" or m == "cloth" then
+        return m
     end
-    return bot.state.material_focus
+    return "ingots"
 end
 
 -- Walk to the same zone as the target bot. Approximation good enough for the
@@ -158,21 +163,16 @@ local function tick()
         return
     end
 
-    -- Try the current material first; if no one has any, swap and retry.
-    local m = bot.state.material_focus
-    if run_delivery_cycle(m) then
-        next_material() -- rotate next cycle for fairness
-        return
-    end
-    m = next_material()
-    if run_delivery_cycle(m) then
-        return
-    end
+    -- Only deliver what focus actually needs. No round-robin "fairness" —
+    -- if Redford trains Tinkering (ingots), Rai brings ingots, never logs.
+    local m = get_focus_material()
+    if run_delivery_cycle(m) then return end
 
-    -- Both materials exhausted — supporters need time to gather. Idle.
+    -- Focus material exhausted. Don't switch to other material — focus
+    -- can't use it. Idle until supporters gather what's needed.
     bot.state.idle_rounds = (bot.state.idle_rounds or 0) + 1
     if bot.state.idle_rounds % 6 == 1 then
-        bot.log("All supporters empty — idle, waiting for materials")
+        bot.log(string.format("No supporter has %d+ %s for focus — idle", BULK_MIN, m))
     end
     wait(4)
 end
