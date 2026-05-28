@@ -352,10 +352,11 @@ local function gather_logs()
 end
 
 local function deliver_to_master()
-    -- KEEP enough ingots/logs for self-tooling before delivering excess.
-    -- If supporter lacks pickaxe and has tinkering skill, save 4 ingots
-    -- for self-craft. Same for hatchet. After self-tools secured, deliver
-    -- the excess to master via direct give_to_focus (bypasses broken runner).
+    -- 2026-05-28: supporters NEVER directly deliver to master. The runner
+    -- (Rai) is the sole material courier per operator spec: "Rai должен
+    -- и только он должен доставлять все материалы". Supporters just
+    -- accumulate and signal readiness; Rai polls signals and runs the
+    -- pickup→deliver cycle for everyone.
     local need_self_ingots = 0
     if not bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
         need_self_ingots = need_self_ingots + 4
@@ -364,18 +365,12 @@ local function deliver_to_master()
         need_self_ingots = need_self_ingots + 4
     end
 
-    local sent_ingots = 0
-    local sent_logs = 0
     local excess_ingots = bot.count_ingots() - need_self_ingots
-    if excess_ingots >= 2 then
-        sent_ingots = bot.give_to_focus("ingots", excess_ingots) or 0
-    end
-    if bot.count_logs() >= 5 then
-        sent_logs = bot.give_to_focus("logs", 100) or 0
-    end
-    if sent_ingots > 0 or sent_logs > 0 then
-        bot.log(string.format("Delivered to master: %d ingots, %d logs (kept %d for self-tools)",
-            sent_ingots, sent_logs, need_self_ingots))
+    -- Signal readiness to runner. Rai's main loop picks the supporter with
+    -- the most material and runs a delivery cycle.
+    if excess_ingots >= 5 or bot.count_logs() >= 10 then
+        bot.signal("has_materials", tostring(bot.index))
+        bot.request_runner("PickupResources")
     end
 end
 

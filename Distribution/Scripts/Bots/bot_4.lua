@@ -1,21 +1,36 @@
--- bot_4.lua: Runner Bot — material shuttle between miners/crafters and bank
--- Priority: pickup requests > proactive supply > self-gather
--- Uses handshake-aware navigation: walk_to crafter → walk_to bank/focus
+-- bot_4.lua — Runner (Rai). Sole material courier between supporters and focus.
+--
+-- 2026-05-28 operator spec rewrite:
+--   "Rai должен и только он должен доставлять все материалы, он для этого
+--   и создан... не другие каждый кому то... только он. Патруль просто так
+--   не нужен. Он должен делать все для того чтоб у крафтов был ресурс
+--   любой который им нужен намного быстрее."
+--
+-- Architecture:
+--   1. Tight pickup→deliver loop, no patrol filler.
+--   2. find_supporter_with_most(material) picks the most-loaded supporter.
+--   3. walk to that supporter → take_from_bot → walk to focus → give_to_focus.
+--   4. Round-robin between ingots and logs each cycle so no material starves.
+--   5. Idle (5s wait) only when ALL supporters are empty AND focus is full.
+--
+-- Single instance — no other bot delivers. Supporters only signal readiness.
 
 bot.state.deliveries     = bot.state.deliveries or 0
-bot.state.gather_trips   = bot.state.gather_trips or 0
 bot.state.stuck_count    = bot.state.stuck_count or 0
 bot.state.last_x         = bot.state.last_x or 0
 bot.state.last_y         = bot.state.last_y or 0
 bot.state.idle_ticks     = bot.state.idle_ticks or 0
-bot.state.patrol_idx     = bot.state.patrol_idx or 0
 bot.state.idle_rounds    = bot.state.idle_rounds or 0
 bot.state.phase          = bot.state.phase or "init"
+bot.state.material_focus = bot.state.material_focus or "ingots"
 
-local STUCK_THRESHOLD   = 5
-local BANK_INGOT_THRESH = 20
-local BANK_LOG_THRESH   = 20
-local SELF_MINE_TARGET  = 20
+local STUCK_THRESHOLD = 5
+
+local BRIDGE_WAYPOINTS = {
+    {x=2525, y=515, z=0},
+    {x=2525, y=501, z=15},
+    {x=2551, y=501, z=15},
+}
 
 local function check_stuck()
     local pos = bot.position()
@@ -29,35 +44,24 @@ local function check_stuck()
     return bot.state.idle_ticks >= STUCK_THRESHOLD
 end
 
-local BRIDGE_WAYPOINTS = {
-    {x=2525, y=515, z=0},
-    {x=2525, y=501, z=15},
-    {x=2551, y=501, z=15},
-}
-
 local function recover_from_stuck()
     bot.state.stuck_count = bot.state.stuck_count + 1
     bot.log("Runner stuck recovery #" .. bot.state.stuck_count)
     bot.state.idle_ticks = 0
-
     local pos = bot.position()
-
     if pos.x >= 2505 and pos.x <= 2515 and pos.y >= 535 and pos.y <= 545 then
         bot.log("Near bank wall — routing via BankStreet north")
         bot.walk_to_point(2525, 515, 0)
         wait(3)
-        bot.walk_to("bank")
         return
     end
-
     if pos.z >= 10 and pos.z <= 35 and pos.x >= 2520 and pos.x <= 2560 then
-        bot.log("On bridge area — routing via known waypoints")
+        bot.log("On bridge — routing via known waypoints")
         for _, wp in ipairs(BRIDGE_WAYPOINTS) do
             bot.walk_to_point(wp.x, wp.y, wp.z)
         end
         return
     end
-
     if bot.state.stuck_count % 3 == 0 then
         wait(10)
     else
@@ -68,103 +72,67 @@ local function recover_from_stuck()
     end
 end
 
-local function has_pickup_request()
-    local sig = bot.check_signal("has_materials")
-    return sig ~= nil
-end
-
-local function handle_pickup_request()
-    bot.state.phase = "pickup"
-    bot.log("Pickup request — bank→forge supply run")
-
-    bot.walk_to("bank")
-    if check_stuck() then recover_from_stuck(); return end
-    wait(3)
-
-    bot.walk_to("forge")
-    if check_stuck() then recover_from_stuck(); return end
-    wait(3)
-
-    bot.state.deliveries = bot.state.deliveries + 1
-    bot.log("Delivery #" .. bot.state.deliveries .. " complete")
-end
-
-local function supply_run()
-    bot.state.phase = "supply"
-    bot.log("Proactive supply: bank→forge resource delivery")
-
-    bot.walk_to("bank")
-    if check_stuck() then recover_from_stuck(); return end
-    wait(5)
-
-    if bot.count_ingots() > 0 or bot.count_logs() > 0 then
-        bot.walk_to("forge")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(5)
-        bot.log("Delivered resources to forge area")
-    end
-
-    bot.state.deliveries = bot.state.deliveries + 1
-end
-
-local function patrol_cycle()
-    bot.state.phase = "patrol"
-    bot.state.patrol_idx = bot.state.patrol_idx + 1
-
-    -- Runner stays on surface (z=0) to avoid z-layer crossing stucks
-    local cycle = bot.state.patrol_idx % 3
-
-    if cycle == 0 then
-        bot.log("Patrol: bank deposit")
-        bot.walk_to("bank")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(3)
-
-    elseif cycle == 1 then
-        bot.log("Patrol: forest check")
-        bot.walk_to("forest")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(3)
-
+-- Alternate between ingots and logs each delivery to keep both flowing.
+local function next_material()
+    if bot.state.material_focus == "ingots" then
+        bot.state.material_focus = "logs"
     else
-        bot.log("Patrol: vendor area")
-        bot.walk_to("vendor")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(3)
+        bot.state.material_focus = "ingots"
+    end
+    return bot.state.material_focus
+end
+
+-- Walk to the same zone as the target bot. Approximation good enough for the
+-- give/take APIs which transfer regardless of distance — but staying near the
+-- worker keeps the bot ai visible and avoids navigation cliffs.
+local function walk_to_bot_zone(target_index)
+    local zone = bot.get_bot_zone(target_index)
+    if not zone or zone == "" then return end
+    -- Map zone enum to one of our waypoints. Supporters are usually in
+    -- Mine (when mining) or Forest (when chopping).
+    local zone_lower = string.lower(tostring(zone))
+    if string.find(zone_lower, "mine") or string.find(zone_lower, "forge") then
+        bot.walk_to("mine")
+    elseif string.find(zone_lower, "forest") then
+        bot.walk_to("forest")
+    elseif string.find(zone_lower, "bank") or string.find(zone_lower, "vendor") then
+        bot.walk_to("bank")
+    else
+        bot.walk_to("forge")
     end
 end
 
-local function self_gather()
-    bot.state.phase = "self_gather"
+-- One full cycle: pick most-loaded supporter, take materials, deliver to focus.
+local function run_delivery_cycle(material)
+    local target = bot.find_supporter_with_most(material)
+    if target == nil or target < 0 then return false end
 
-    local mining_skill = bot.get_skill("mining")
-    if mining_skill >= 20 and bot.count_ingots() < BANK_INGOT_THRESH then
-        bot.log("Runner self-gather: mining ore (MN=" .. string.format("%.0f", mining_skill) .. ")")
-        bot.walk_to("mine")
-        if check_stuck() then recover_from_stuck(); return end
+    bot.state.phase = "pickup"
+    bot.log(string.format("Pickup cycle: %s from Bot#%d", material, target))
 
-        bot.mine_until(function()
-            return bot.count_ore() >= SELF_MINE_TARGET or bot.is_overweight()
-        end)
+    walk_to_bot_zone(target)
+    if check_stuck() then recover_from_stuck(); return false end
 
-        if bot.count_ore() > 0 then
-            bot.walk_to("forge")
-            bot.smelt_all()
-        end
-
-        bot.state.gather_trips = bot.state.gather_trips + 1
-    elseif mining_skill < 20 then
-        bot.log("Runner: Mining too low (" .. string.format("%.0f", mining_skill) .. "), skipping self-gather — patrol instead")
-        patrol_cycle()
-        return
+    local taken = bot.take_from_bot(target, material, 100) or 0
+    if taken == 0 then
+        -- supporter emptied between signal and arrival; not a stuck event
+        bot.log(string.format("Bot#%d already empty on %s — skip", target, material))
+        return false
     end
+    bot.log(string.format("Picked up %d %s from Bot#%d", taken, material, target))
 
-    if bot.is_overweight() or bot.count_ingots() >= BANK_INGOT_THRESH then
-        bot.log("Runner: depositing to bank")
-        bot.walk_to("bank")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(2)
-    end
+    -- Deliver leg: walk to forge area where focus crafts, then transfer.
+    bot.state.phase = "deliver"
+    bot.walk_to("forge")
+    if check_stuck() then recover_from_stuck(); return false end
+
+    local given = bot.give_to_focus(material, taken) or 0
+    bot.state.deliveries = bot.state.deliveries + 1
+    bot.log(string.format("Delivered %d %s to focus (cycle #%d)",
+        given, material, bot.state.deliveries))
+
+    bot.use_arms_lore()
+    return true
 end
 
 local function tick()
@@ -173,35 +141,28 @@ local function tick()
         return
     end
 
-    if has_pickup_request() then
-        handle_pickup_request()
+    -- Try the current material first; if no one has any, swap and retry.
+    local m = bot.state.material_focus
+    if run_delivery_cycle(m) then
+        next_material() -- rotate next cycle for fairness
+        return
+    end
+    m = next_material()
+    if run_delivery_cycle(m) then
         return
     end
 
-    if bot.is_overweight() then
-        bot.log("Overweight — depositing to bank")
-        bot.walk_to("bank")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(2)
-        return
+    -- Both materials exhausted — supporters need time to gather. Idle.
+    bot.state.idle_rounds = (bot.state.idle_rounds or 0) + 1
+    if bot.state.idle_rounds % 6 == 1 then
+        bot.log("All supporters empty — idle, waiting for materials")
     end
-
-    -- Alternate between supply runs and patrols
-    if bot.state.deliveries % 3 == 0 then
-        supply_run()
-    else
-        patrol_cycle()
-    end
-
-    bot.use_arms_lore()
-    wait(2 + math.random() * 2)
+    wait(4)
 end
 
 function main()
-    bot.log("Runner script v1 loaded — " .. bot.name)
-    bot.state.phase = "running"
-    bot.emote("*stretches and gets ready to run*")
-
+    bot.log("Runner script v2 loaded — Rai (sole material courier)")
+    bot.state.last_role = ""
     while true do
         tick()
         yield()
