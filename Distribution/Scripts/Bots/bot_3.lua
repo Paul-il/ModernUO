@@ -88,14 +88,37 @@ local function estimate_material_for_plus_one(skill_value)
     return base
 end
 
+local function can_train_skill(skill)
+    -- INGOT skills need pickaxe to mine (or team ingots delivered)
+    if INGOT_SKILLS[skill] then
+        return bot.has_pickaxe() or bot.count_ingots() >= 4
+    end
+    -- LOG skills need hatchet to chop
+    if LOG_SKILLS[skill] then
+        return bot.has_hatchet() or bot.count_logs() >= 4
+    end
+    return true
+end
+
 local function pick_target_skill()
     local highest_val = -1
     local highest_skill = nil
+    -- Prefer skills bot CAN train (has tools/material) first
     for _, skill in ipairs(SKILL_ORDER) do
         local v = get_skill_value(skill)
-        if v < 75 and v > highest_val then
+        if v < 75 and v > highest_val and can_train_skill(skill) then
             highest_val = v
             highest_skill = skill
+        end
+    end
+    -- Fallback: any below-75 skill if nothing trainable
+    if not highest_skill then
+        for _, skill in ipairs(SKILL_ORDER) do
+            local v = get_skill_value(skill)
+            if v < 75 and v > highest_val then
+                highest_val = v
+                highest_skill = skill
+            end
         end
     end
     return highest_skill, highest_val
@@ -193,7 +216,33 @@ local function gather_for(skill)
     end
 end
 
+local function ensure_master_tools()
+    -- Master needs tools to gather. Craft pickaxe/hatchet if missing + has ingots.
+    if not bot.has_pickaxe() and bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+        bot.log("Master crafting pickaxe (no pickaxe, have ingots)")
+        bot.walk_to("forge")
+        bot.craft("tinkering", "pickaxe")
+        wait(2)
+    end
+    if not bot.has_hatchet() and bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+        bot.log("Master crafting hatchet (no hatchet, have ingots)")
+        bot.walk_to("forge")
+        bot.craft("tinkering", "hatchet")
+        wait(2)
+    end
+end
+
 local function master_tick()
+    bot.state.master_tick_n = (bot.state.master_tick_n or 0) + 1
+    if bot.state.master_tick_n % 20 == 1 then
+        bot.log(string.format("[debug] master_tick #%d target=%s pickaxe=%s hatchet=%s ing=%d log=%d",
+            bot.state.master_tick_n, tostring(bot.state.current_target),
+            tostring(bot.has_pickaxe()), tostring(bot.has_hatchet()),
+            bot.count_ingots(), bot.count_logs()))
+    end
+
+    ensure_master_tools()
+
     if try_levelup_quest() then return end
 
     local target_skill, target_val = pick_target_skill()
@@ -213,6 +262,12 @@ local function master_tick()
     if next_skill then
         bot.signal("next_master_skill", next_skill)
         bot.signal("next_master_material", material_for_skill(next_skill))
+    end
+
+    if bot.state.master_tick_n % 20 == 1 then
+        bot.log(string.format("[signals] master_skill=%s material=%s next_skill=%s next_material=%s",
+            target_skill, material_for_skill(target_skill),
+            tostring(next_skill), next_skill and material_for_skill(next_skill) or "nil"))
     end
 
     log_self_learning(target_skill)
@@ -289,19 +344,30 @@ local function gather_logs()
 end
 
 local function deliver_to_master()
-    if bot.count_ingots() >= 10 or bot.count_logs() >= 10 then
-        bot.request_runner("PickupResources")
-        bot.signal("has_materials", tostring(bot.index))
+    -- Direct transfer via give_to_focus API (bypasses broken runner).
+    -- Low threshold (2+) to ensure pickaxe-bootstrap when ingots scarce.
+    local sent_ingots = 0
+    local sent_logs = 0
+    if bot.count_ingots() >= 2 then
+        sent_ingots = bot.give_to_focus("ingots", 100) or 0
     end
-    if bot.is_overweight() or bot.count_ingots() >= SIGNAL_THRESHOLD or bot.count_logs() >= SIGNAL_THRESHOLD then
-        bot.log("Going to forge to drop materials for master")
-        bot.walk_to("forge")
-        if check_stuck() then recover_from_stuck(); return end
-        wait(3)
+    if bot.count_logs() >= 5 then
+        sent_logs = bot.give_to_focus("logs", 100) or 0
+    end
+    if sent_ingots > 0 or sent_logs > 0 then
+        bot.log(string.format("Delivered to master: %d ingots, %d logs", sent_ingots, sent_logs))
     end
 end
 
 local function supporter_tick()
+    bot.state.sup_tick_n = (bot.state.sup_tick_n or 0) + 1
+    if bot.state.sup_tick_n % 20 == 1 then
+        bot.log(string.format("[debug] supporter_tick #%d pickaxe=%s hatchet=%s ingots=%d logs=%d",
+            bot.state.sup_tick_n,
+            tostring(bot.has_pickaxe()), tostring(bot.has_hatchet()),
+            bot.count_ingots(), bot.count_logs()))
+    end
+
     -- Tool check
     if not bot.has_pickaxe() and bot.count_ingots() >= 4 then
         bot.walk_to("forge")
@@ -314,19 +380,43 @@ local function supporter_tick()
         wait(2)
     end
 
-    if not bot.has_pickaxe() then
-        bot.walk_to("mine")
-        if check_stuck() then recover_from_stuck(); return end
-        bot.mine()
-        wait(2)
-        return
+    -- Read what master needs FIRST
+    local cur_material = bot.check_signal("master_material")
+    local cur = cur_material and tostring(cur_material) or "ingots"
+
+    if bot.state.sup_tick_n % 20 == 1 then
+        bot.log(string.format("[signals-read] raw=%s parsed=%s",
+            tostring(cur_material), cur))
     end
 
-    local target = pick_gather_target()
-    if target == "mine" then
-        gather_ore()
+    -- Master needs INGOTS? Try to participate in mining
+    if cur == "ingots" then
+        if bot.has_pickaxe() then
+            gather_ore()
+        else
+            -- No pickaxe — wait at forge for tinkerer-supporter to make one
+            bot.log("Need pickaxe to mine — waiting at forge")
+            bot.walk_to("forge")
+            wait(5)
+            -- If a tinkerer-bot has ingots, try to craft self pickaxe
+            if bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+                bot.log("Crafting self-pickaxe")
+                bot.craft("tinkering", "pickaxe")
+                wait(2)
+            end
+        end
+    -- Master needs LOGS? All chop
+    elseif cur == "logs" then
+        if bot.has_hatchet() then
+            gather_logs()
+        else
+            bot.log("Need hatchet — going to forge")
+            bot.walk_to("forge")
+            wait(3)
+        end
+    -- Master needs CLOTH? Tailoring (rare path)
     else
-        gather_logs()
+        gather_logs()  -- fallback chop
     end
 
     deliver_to_master()
@@ -350,6 +440,14 @@ local function tick()
         bot.state.last_role = role
         bot.state.current_target = ""
         bot.state.idle_ticks = 0
+        -- Clear stale master signals when stepping down from Focus
+        if role ~= "Focus" then
+            bot.signal("master_skill", nil)
+            bot.signal("master_material", nil)
+            bot.signal("next_master_skill", nil)
+            bot.signal("next_master_material", nil)
+            bot.log("Cleared stale master signals")
+        end
     end
 
     if role == "Focus" then
@@ -363,6 +461,8 @@ end
 
 function main()
     bot.log("Role-aware squad script loaded — " .. bot.name .. " (role=" .. bot.role() .. ")")
+    -- Force role-change handler to re-fire on script load (clears stale signals)
+    bot.state.last_role = ""
     while true do
         tick()
         yield()
