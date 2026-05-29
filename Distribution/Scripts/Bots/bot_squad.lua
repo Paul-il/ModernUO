@@ -123,11 +123,20 @@ local function can_train_skill(skill)
     -- craft. Now requires either (a) material in pack OR (b) team has
     -- material ready (deliverable via Rai). Tool alone isn't enough —
     -- master can't progress without material to consume.
+    -- 2026-05-29: ingot-skills are ALWAYS supplyable (buy ingots with bank gold,
+    -- no gather tool needed); the downstream self-supply buys or no-ops gracefully.
     if INGOT_SKILLS[skill] then
-        return bot.count_ingots() >= 4 or bot.team_material_count("blacksmith") >= 4
+        return true
     end
+    -- 2026-05-29 FIX: log-skills require logs IN PACK or a HATCHET to chop them.
+    -- Do NOT count team_material_count (bank logs): when the squad is tool-starved
+    -- the runner can't deliver those, so counting them made the trainee pick a
+    -- log-skill it could never actually supply → permanent stall. Without a
+    -- hatchet (un-craftable until craft_tool loads on restart), carpentry/
+    -- fletching are NOT trainable, so pick_target_skill falls through to a
+    -- buyable ingot-skill and the team self-recovers live.
     if LOG_SKILLS[skill] then
-        return bot.count_logs() >= 4 or bot.team_material_count("carpentry") >= 4
+        return bot.count_logs() >= 4 or bot.has_hatchet()
     end
     return true
 end
