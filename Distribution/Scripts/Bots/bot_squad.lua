@@ -58,29 +58,20 @@ local function recover_from_stuck()
     end
 end
 
--- 2026-05-29 DEADLOCK ESCAPE: tool starvation recovery.
--- Root cause: the script craft() path ignores the requested item name and the
--- C# Pickaxe-force is trainee-only + skill-gated, so a Lua supporter can never
--- reliably craft a Pickaxe and NOBODY can script-craft a Hatchet. When the whole
--- team loses its seeded tools AND ingots run dry, every bot waits at the forge
--- forever (no-tool → no-mine → no-ingot → no-tool).
--- Fix: buy ingots with the seeded bank gold and craft the exact tool via the new
--- bot.craft_tool() C# API. craft_tool is nil until the server restart that loads
--- the new DLL, so make_tool() is a safe no-op until then (never burns gold on a
--- craft that can't yield a tool).
-local function buy_ingots_until(n)
-    if bot.count_ingots() >= n then return true end
-    bot.walk_to("forge")
-    bot.buy_ingots()
-    wait(1)
-    return bot.count_ingots() >= n
-end
-
+-- 2026-05-29 TOOL-STARVATION RECOVERY (MINE, don't buy — operator rule).
+-- Root cause was twofold and is fixed in C#: (1) bot harvest tools broke far too
+-- fast (vanilla Pickaxe=50 uses ≈ 10 min of mining), and (2) the script craft()
+-- path couldn't reliably replace them (item name ignored, Pickaxe-force trainee-
+-- only, Hatchet never). Now bots get DURABLE tools (BotPlayerMobile.BotToolUses)
+-- and a reliable bot.craft_tool() that crafts the EXACT tool — from MINED ingots.
+-- Bots NEVER buy ingots; they mine their own. make_tool only crafts a replacement
+-- from ingots already in pack; if there are none, the caller goes mining.
+-- craft_tool is nil until the restart that loads the new DLL → safe no-op till then.
 local function make_tool(which)
     -- which = "pickaxe" | "hatchet". Returns true once the tool is in the pack.
     if not bot.craft_tool then return false end          -- pre-restart: no reliable path
     if bot.get_skill("tinkering") < 30 then return false end
-    if not buy_ingots_until(4) then return false end     -- bank gold → ingots
+    if bot.count_ingots() < 4 then return false end      -- need MINED ingots; caller mines
     bot.walk_to("forge")
     bot.craft_tool(which)
     wait(2)
@@ -123,18 +114,18 @@ local function can_train_skill(skill)
     -- craft. Now requires either (a) material in pack OR (b) team has
     -- material ready (deliverable via Rai). Tool alone isn't enough —
     -- master can't progress without material to consume.
-    -- 2026-05-29: ingot-skills are ALWAYS supplyable (buy ingots with bank gold,
-    -- no gather tool needed); the downstream self-supply buys or no-ops gracefully.
+    -- 2026-05-29: ingot-skills are always considered trainable — the bot MINES its
+    -- own ingots with its (durable) pickaxe. The master/supporter mine-loop supplies
+    -- them; if the pickaxe is somehow lost the bot waits for share_tool. No buying.
     if INGOT_SKILLS[skill] then
         return true
     end
     -- 2026-05-29 FIX: log-skills require logs IN PACK or a HATCHET to chop them.
     -- Do NOT count team_material_count (bank logs): when the squad is tool-starved
     -- the runner can't deliver those, so counting them made the trainee pick a
-    -- log-skill it could never actually supply → permanent stall. Without a
-    -- hatchet (un-craftable until craft_tool loads on restart), carpentry/
-    -- fletching are NOT trainable, so pick_target_skill falls through to a
-    -- buyable ingot-skill and the team self-recovers live.
+    -- log-skill it could never actually supply → permanent stall. Without a hatchet,
+    -- carpentry/fletching are NOT trainable, so pick_target_skill falls through to a
+    -- mineable ingot-skill instead of idling on an unsupplyable log-skill.
     if LOG_SKILLS[skill] then
         return bot.count_logs() >= 4 or bot.has_hatchet()
     end
@@ -152,13 +143,12 @@ local function pick_target_skill()
             highest_skill = skill
         end
     end
-    -- 2026-05-29 DEADLOCK ESCAPE fallback: nothing has material. Prefer an
-    -- INGOT-skill (Blacksmith/Tinkering) — those are suppliable by BUYING ingots
-    -- with bank gold (no gather tool needed) and, for the trainee, the existing
-    -- PickBestRecipe force-logic mints Pickaxes that share_tool hands to
-    -- supporters → the mining economy restarts WITHOUT a server restart. A
-    -- log-skill fallback (carpentry/fletching) needs a Hatchet that can't be
-    -- script-crafted until craft_tool loads, so it would just idle forever.
+    -- 2026-05-29 fallback: nothing has material. Prefer an INGOT-skill
+    -- (Blacksmith/Tinkering) — the bot MINES its own ore for those (durable
+    -- pickaxe), and the trainee's PickBestRecipe force-logic also mints Pickaxes
+    -- that share_tool hands to supporters → the mining economy keeps flowing. A
+    -- log-skill fallback (carpentry/fletching) needs a Hatchet to chop, so prefer
+    -- the mineable ingot-skill rather than idling on an unsupplyable log-skill.
     if not highest_skill then
         for _, skill in ipairs(SKILL_ORDER) do
             if INGOT_SKILLS[skill] then
@@ -468,39 +458,21 @@ local function master_tick()
                     wait(1)
                 end
             else
-                -- 2026-05-29 DEADLOCK ESCAPE: don't idle — actively self-supply.
-                if INGOT_SKILLS[target_skill] then
-                    -- Blacksmith/Tinkering craft at the forge from ingots; no
-                    -- gather tool needed. Buy ingots → craft now. Works pre-restart.
-                    if bot.state.master_tick_n % 10 == 1 then
-                        bot.log(string.format("Need %s: buying ingots to self-supply", target_skill))
-                    end
-                    if buy_ingots_until(8) then
-                        bot.craft(target_skill, "")
-                        wait(1)
-                    else
-                        bot.walk_to("forge"); bot.use_arms_lore(); wait(2)
-                    end
-                elseif LOG_SKILLS[target_skill] then
-                    -- Need a hatchet to chop logs. Craft one via craft_tool
-                    -- (buy ingots first). No-op until restart → then waits.
-                    if make_tool("hatchet") then
-                        bot.log(string.format("Need %s: crafted hatchet — will gather logs next tick", target_skill))
-                    else
-                        if bot.state.master_tick_n % 10 == 1 then
-                            bot.log(string.format("Need %s: no team material, no tool — waiting (training ArmsLore)",
-                                target_skill))
-                        end
-                        bot.walk_to("forge")
-                        bot.use_arms_lore()
-                        wait(3)
-                    end
+                -- 2026-05-29 (MINE, don't buy): no gather tool in hand and no team
+                -- material. With durable tools this is rare; when it happens, craft
+                -- the missing tool from MINED ingots if we have any (shared/leftover),
+                -- otherwise wait for share_tool from a teammate (durable tools mean a
+                -- teammate almost always has a spare). Never buy ingots/cloth.
+                local need = LOG_SKILLS[target_skill] and "hatchet" or "pickaxe"
+                if make_tool(need) then
+                    bot.log(string.format("Need %s: crafted %s from ingots — resuming", target_skill, need))
                 else
-                    -- Tailoring → buy cloth from vendor with bank gold.
                     if bot.state.master_tick_n % 10 == 1 then
-                        bot.log(string.format("Need %s: buying cloth to self-supply", target_skill))
+                        bot.log(string.format("Need %s: no tool, no ingots — waiting for share_tool (ArmsLore)", target_skill))
                     end
-                    bot.walk_to("forge"); bot.buy_cloth(); wait(1)
+                    bot.walk_to("forge")
+                    bot.use_arms_lore()
+                    wait(3)
                 end
             end
         end
