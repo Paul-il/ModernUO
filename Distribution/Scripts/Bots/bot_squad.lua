@@ -421,8 +421,10 @@ local function master_tick()
                     target_skill, team_count, bot.state.wait_ticks * 5))
             end
             bot.walk_to("forge")
-            if bot.get_skill("tinkering") >= 30 and bot.count_ingots() >= 2 then
-                -- Craft tools while waiting. share_tool will distribute them.
+            if bot.get_skill("tinkering") >= 30 and bot.count_ingots() >= 4 then
+                -- 2026-05-29 FIX: gate at 4 (ScriptCraftTool needs 4 ingots) — was
+                -- >=2, which made make_tool a no-op spin at ing 2-3 (never crafts,
+                -- never consumes). Craft tools while waiting. share_tool distributes.
                 -- Alternate pickaxe/hatchet so neither runs out.
                 if bot.state.master_tick_n % 2 == 0 then
                     make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
@@ -627,9 +629,15 @@ local function supporter_tick()
     elseif cur == "logs" then
         if bot.has_hatchet() then
             gather_logs()
-        elseif bot.count_ingots() >= 2 and bot.get_skill("tinkering") >= 30 then
-            -- 2026-05-28: hatchet recipe needs 2 ingots (was gated at 4 — same
-            -- as pickaxe — which left supporters with 2-3 ingots stranded).
+        elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
+            -- 2026-05-29 FIX: gate at 4 ingots — ScriptCraftTool (the craft_tool
+            -- C# path) requires 4 ingots (BotBrainTimer.cs:12271 "need 4 ingots").
+            -- The 2026-05-28 change to >=2 (wrongly assuming a 2-ingot hatchet
+            -- recipe) made make_tool a SILENT NO-OP at ing 2-3: it never crafted,
+            -- never consumed ingots, and blocked the bootstrap-mine fall-through
+            -- below → choppers span "Self-crafting hatchet (ingots=2)" forever,
+            -- lost the whole log supply, focus starved. At <4 ingots we now fall
+            -- through to the bootstrap-mine branch to top up to 4 first.
             bot.log("Self-crafting hatchet (ingots=" .. bot.count_ingots() .. ")")
             bot.walk_to("forge")
             make_tool("hatchet")  -- craft_tool: KEEPS a durable hatchet (not recycled like craft())
