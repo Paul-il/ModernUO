@@ -293,12 +293,12 @@ local function ensure_master_tools()
     if (not has_pick) and bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
         bot.log("Master crafting pickaxe (no pickaxe, have ingots)")
         bot.walk_to("forge")
-        bot.craft("tinkering", "pickaxe")
+        make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
         wait(2)
     elseif (not has_hat) and bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
         bot.log("Master crafting hatchet (no hatchet, have ingots)")
         bot.walk_to("forge")
-        bot.craft("tinkering", "hatchet")
+        make_tool("hatchet")  -- craft_tool: KEEPS a durable hatchet (not recycled like craft())
         wait(2)
     elseif has_pick and has_hat and bot.count_ingots() >= 8 and bot.get_skill("tinkering") >= 30
        and (bot.state.current_target == "blacksmith" or bot.state.current_target == "tinkering") then
@@ -306,7 +306,7 @@ local function ensure_master_tools()
         -- shouldn't waste ingots on pickaxes — needed for its own CP recipes.
         bot.log("Master crafting spare pickaxe for team (ingots=" .. bot.count_ingots() .. ")")
         bot.walk_to("forge")
-        bot.craft("tinkering", "pickaxe")
+        make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
         wait(2)
     end
 end
@@ -425,9 +425,9 @@ local function master_tick()
                 -- Craft tools while waiting. share_tool will distribute them.
                 -- Alternate pickaxe/hatchet so neither runs out.
                 if bot.state.master_tick_n % 2 == 0 then
-                    bot.craft("tinkering", "pickaxe")
+                    make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
                 else
-                    bot.craft("tinkering", "hatchet")
+                    make_tool("hatchet")  -- craft_tool: KEEPS a durable hatchet (not recycled like craft())
                 end
             else
                 bot.use_arms_lore()
@@ -571,12 +571,12 @@ local function supporter_tick()
     -- Tool check
     if not bot.has_pickaxe() and bot.count_ingots() >= 4 then
         bot.walk_to("forge")
-        bot.craft("tinkering", "pickaxe")
+        make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
         wait(2)
     end
     if not bot.has_hatchet() and bot.count_ingots() >= 4 then
         bot.walk_to("forge")
-        bot.craft("tinkering", "hatchet")
+        make_tool("hatchet")  -- craft_tool: KEEPS a durable hatchet (not recycled like craft())
         wait(2)
     end
 
@@ -605,7 +605,7 @@ local function supporter_tick()
         elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
             bot.log("Self-crafting pickaxe")
             bot.walk_to("forge")
-            bot.craft("tinkering", "pickaxe")
+            make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
             wait(2)
         else
             -- 2026-05-29 DEADLOCK ESCAPE: buy ingots + craft a pickaxe via the
@@ -632,7 +632,7 @@ local function supporter_tick()
             -- as pickaxe — which left supporters with 2-3 ingots stranded).
             bot.log("Self-crafting hatchet (ingots=" .. bot.count_ingots() .. ")")
             bot.walk_to("forge")
-            bot.craft("tinkering", "hatchet")
+            make_tool("hatchet")  -- craft_tool: KEEPS a durable hatchet (not recycled like craft())
             wait(2)
         elseif bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
             -- 2026-05-28 bootstrap: supporter has pickaxe but no hatchet AND
