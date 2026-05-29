@@ -14,12 +14,29 @@ bot.state.stuck_count = bot.state.stuck_count or 0
 bot.state.current_target = bot.state.current_target or ""
 bot.state.last_role = bot.state.last_role or ""
 
-local SKILL_ORDER = {"carpentry", "blacksmith", "fletching", "tinkering"}
-local INGOT_SKILLS = {tinkering = true, blacksmith = true}
-local LOG_SKILLS   = {fletching = true, carpentry = true}
+-- Single source of truth for the squad's craft skills. SKILL_ORDER,
+-- INGOT_SKILLS, LOG_SKILLS and SKILL_MATERIAL all derive from this table.
+-- ORDER IS OBSERVABLE: pick_target_skill breaks skill-value ties by
+-- first-in-order, so do NOT reorder these entries.
+local SKILL_CONFIG = {
+    { name = "carpentry",  material = "logs"   },
+    { name = "blacksmith", material = "ingots" },
+    { name = "fletching",  material = "logs"   },
+    { name = "tinkering",  material = "ingots" },
+}
+
+local SKILL_ORDER = {}
+local INGOT_SKILLS = {}
+local LOG_SKILLS = {}
+local SKILL_MATERIAL = {}
+for _, def in ipairs(SKILL_CONFIG) do
+    SKILL_ORDER[#SKILL_ORDER + 1] = def.name
+    SKILL_MATERIAL[def.name] = def.material
+    if def.material == "ingots" then INGOT_SKILLS[def.name] = true end
+    if def.material == "logs"   then LOG_SKILLS[def.name]   = true end
+end
 
 local STUCK_THRESHOLD = 5
-local SIGNAL_THRESHOLD = 10
 local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0
 
 local BRIDGE_WAYPOINTS = {
@@ -83,8 +100,7 @@ local function get_skill_value(skill)
 end
 
 local function material_for_skill(skill)
-    if INGOT_SKILLS[skill] then return "ingots" end
-    if LOG_SKILLS[skill] then return "logs" end
+    if SKILL_MATERIAL[skill] then return SKILL_MATERIAL[skill] end
     if skill == "tailoring" then return "cloth" end
     return ""
 end
@@ -96,17 +112,19 @@ local function count_material(skill)
     return 0
 end
 
+-- Skill -> harvest-tool gate. Centralizes the pickaxe/hatchet check the master
+-- decision branch repeats. Tailoring / unknown skills have no harvest tool, so
+-- they are never tool-gated. (Supporter tool checks stay material-keyed on the
+-- master_material signal by design — they don't know the master's skill name.)
+local function has_tool_for_skill(skill)
+    if INGOT_SKILLS[skill] then return bot.has_pickaxe() end
+    if LOG_SKILLS[skill] then return bot.has_hatchet() end
+    return true
+end
+
 -- =========================================================================
 -- MASTER (Focus) behavior
 -- =========================================================================
-
-local function estimate_material_for_plus_one(skill_value)
-    local base = 30
-    if skill_value > 60 then
-        base = base + math.floor((skill_value - 60) * 3)
-    end
-    return base
-end
 
 local function can_train_skill(skill)
     -- 2026-05-28: previously this returned true if bot had the gathering
@@ -398,10 +416,7 @@ local function master_tick()
         --   (a) supporters truly empty (team_count < 4 AND no bootstrap visible)
         --   (b) AND master has the required tool
         local team_count = bot.team_material_count(target_skill)
-        local has_tool = false
-        if INGOT_SKILLS[target_skill] then has_tool = bot.has_pickaxe()
-        elseif LOG_SKILLS[target_skill] then has_tool = bot.has_hatchet()
-        else has_tool = true end
+        local has_tool = has_tool_for_skill(target_skill)
 
         -- 2026-05-29: track stuck time. If supporters can't deliver for 5+
         -- minutes (master in wait branch for that long), master self-gathers
