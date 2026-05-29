@@ -143,7 +143,25 @@ local function pick_target_skill()
             highest_skill = skill
         end
     end
-    -- Fallback: any below-75 skill if nothing trainable
+    -- 2026-05-29 DEADLOCK ESCAPE fallback: nothing has material. Prefer an
+    -- INGOT-skill (Blacksmith/Tinkering) — those are suppliable by BUYING ingots
+    -- with bank gold (no gather tool needed) and, for the trainee, the existing
+    -- PickBestRecipe force-logic mints Pickaxes that share_tool hands to
+    -- supporters → the mining economy restarts WITHOUT a server restart. A
+    -- log-skill fallback (carpentry/fletching) needs a Hatchet that can't be
+    -- script-crafted until craft_tool loads, so it would just idle forever.
+    if not highest_skill then
+        for _, skill in ipairs(SKILL_ORDER) do
+            if INGOT_SKILLS[skill] then
+                local v = get_skill_value(skill)
+                if v < 75 and v > highest_val then
+                    highest_val = v
+                    highest_skill = skill
+                end
+            end
+        end
+    end
+    -- Last resort: any below-75 skill (e.g. all ingot-skills already capped).
     if not highest_skill then
         for _, skill in ipairs(SKILL_ORDER) do
             local v = get_skill_value(skill)
