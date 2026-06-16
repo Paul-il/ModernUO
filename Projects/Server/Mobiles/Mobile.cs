@@ -7918,7 +7918,9 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                     type
                 );
 
-                PrivateOverheadMessage(MessageType.Regular, SpeechHue, true, text, from.NetState);
+                // Unicode (0xAE), not ASCII (0x1C): player-entered guild titles and
+                // abbreviations may be Cyrillic, which Latin-1 renders as '?'.
+                PrivateOverheadMessage(MessageType.Regular, SpeechHue, false, text, from.NetState);
             }
         }
 

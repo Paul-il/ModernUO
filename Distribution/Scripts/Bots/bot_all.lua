@@ -1,4 +1,4 @@
--- bot_all.lua: Universal crafter script — assigned to any bot without a personal file
+﻿-- bot_all.lua: Universal crafter script â€” assigned to any bot without a personal file
 -- Uses bot.index for sector-aware behavior. Identical logic to bot_0.lua.
 -- Bots 0-3 are crafters, bot 4 is runner (has its own bot_4.lua).
 
@@ -12,7 +12,7 @@ bot.state.last_y        = bot.state.last_y or 0
 bot.state.idle_ticks    = bot.state.idle_ticks or 0
 bot.state.phase         = bot.state.phase or "init"
 
--- Prioritize log-based skills — mining has lower ore yield in current environment
+-- Prioritize log-based skills â€” mining has lower ore yield in current environment
 local SKILL_ORDER = {"fletching", "carpentry", "tinkering", "blacksmith", "tailoring"}
 local INGOT_SKILLS = {tinkering = true, blacksmith = true}
 local LOG_SKILLS   = {fletching = true, carpentry = true}
@@ -109,7 +109,7 @@ local function recover_from_stuck()
     local pos = bot.position()
 
     if pos.z >= 10 and pos.z <= 35 and pos.x >= 2520 and pos.x <= 2560 then
-        bot.log("On bridge area — routing via known waypoints")
+        bot.log("On bridge area â€” routing via known waypoints")
         for _, wp in ipairs(BRIDGE_WAYPOINTS) do
             bot.walk_to_point(wp.x, wp.y, wp.z)
         end
@@ -144,7 +144,7 @@ local function ensure_tools()
     end
 
     if (not bot.has_pickaxe() or not bot.has_hatchet()) and ingots < 4 then
-        bot.log("Need tools but only " .. ingots .. " ingots — mining for bootstrap")
+        bot.log("Need tools but only " .. ingots .. " ingots â€” mining for bootstrap")
         bot.walk_to("mine")
         if check_stuck() then recover_from_stuck(); return end
         bot.mine_until(function()
@@ -175,7 +175,7 @@ local function gather_ore()
     bot.state.mine_trips = bot.state.mine_trips + 1
 
     if bot.count_ore() <= pre_ore then
-        bot.log("Mine depleted — switching to chop wood")
+        bot.log("Mine depleted â€” switching to chop wood")
         gather_logs()
     end
 end
@@ -245,7 +245,7 @@ local function try_craft_any()
     return false
 end
 
-local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0
+local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
 
 local function try_levelup_quest()
     local lvl = bot.class_level()
@@ -255,7 +255,7 @@ local function try_levelup_quest()
     if lvl == 0 and min_skill < 75 then return false end
     if lvl >= 1 then return false end
 
-    bot.log("All skills ≥ 75 — walking to Elder Vestalar at (" .. ELDER_X .. "," .. ELDER_Y .. ") for levelup quest")
+    bot.log("All skills â‰¥ 75 â€” walking to Elder Vestalar at (" .. ELDER_X .. "," .. ELDER_Y .. ") for levelup quest")
     bot.walk_to_point(ELDER_X, ELDER_Y, ELDER_Z)
     wait(2)
 
@@ -317,7 +317,7 @@ local function tick()
 end
 
 function main()
-    bot.log("Universal crafter script v2 loaded — " .. bot.name .. " (index " .. bot.index .. ")")
+    bot.log("Universal crafter script v2 loaded â€” " .. bot.name .. " (index " .. bot.index .. ")")
     bot.state.phase = "running"
     bot.state.errors = bot.state.errors or 0
 

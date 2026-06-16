@@ -1,7 +1,7 @@
--- bot_squad.lua: ROLE-AWARE unified squad script
+﻿-- bot_squad.lua: ROLE-AWARE unified squad script
 -- Auto-detects bot.role() each tick:
---   Focus      → master pipeline (pick skill, craft +1, signal team)
---   Supporter  → gather material for whoever is Focus, alternating current+next
+--   Focus      â†’ master pipeline (pick skill, craft +1, signal team)
+--   Supporter  â†’ gather material for whoever is Focus, alternating current+next
 -- One file for all crafter bots (bot_0/1/2/3 all run this).
 -- No more script swapping when Focus bot rotates after each L1 achievement.
 
@@ -37,7 +37,7 @@ for _, def in ipairs(SKILL_CONFIG) do
 end
 
 local STUCK_THRESHOLD = 5
-local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0
+local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
 
 local BRIDGE_WAYPOINTS = {
     {x=2525, y=515, z=0},
@@ -75,15 +75,15 @@ local function recover_from_stuck()
     end
 end
 
--- 2026-05-29 TOOL-STARVATION RECOVERY (MINE, don't buy — operator rule).
+-- 2026-05-29 TOOL-STARVATION RECOVERY (MINE, don't buy â€” operator rule).
 -- Root cause was twofold and is fixed in C#: (1) bot harvest tools broke far too
--- fast (vanilla Pickaxe=50 uses ≈ 10 min of mining), and (2) the script craft()
+-- fast (vanilla Pickaxe=50 uses â‰ˆ 10 min of mining), and (2) the script craft()
 -- path couldn't reliably replace them (item name ignored, Pickaxe-force trainee-
 -- only, Hatchet never). Now bots get DURABLE tools (BotPlayerMobile.BotToolUses)
--- and a reliable bot.craft_tool() that crafts the EXACT tool — from MINED ingots.
+-- and a reliable bot.craft_tool() that crafts the EXACT tool â€” from MINED ingots.
 -- Bots NEVER buy ingots; they mine their own. make_tool only crafts a replacement
 -- from ingots already in pack; if there are none, the caller goes mining.
--- craft_tool is nil until the restart that loads the new DLL → safe no-op till then.
+-- craft_tool is nil until the restart that loads the new DLL â†’ safe no-op till then.
 local function make_tool(which)
     -- which = "pickaxe" | "hatchet". Returns true once the tool is in the pack.
     if not bot.craft_tool then return false end          -- pre-restart: no reliable path
@@ -115,7 +115,7 @@ end
 -- Skill -> harvest-tool gate. Centralizes the pickaxe/hatchet check the master
 -- decision branch repeats. Tailoring / unknown skills have no harvest tool, so
 -- they are never tool-gated. (Supporter tool checks stay material-keyed on the
--- master_material signal by design — they don't know the master's skill name.)
+-- master_material signal by design â€” they don't know the master's skill name.)
 local function has_tool_for_skill(skill)
     if INGOT_SKILLS[skill] then return bot.has_pickaxe() end
     if LOG_SKILLS[skill] then return bot.has_hatchet() end
@@ -128,11 +128,11 @@ end
 
 local function can_train_skill(skill)
     -- 2026-05-28: previously this returned true if bot had the gathering
-    -- TOOL even with no material — picked skills that couldn't actually
+    -- TOOL even with no material â€” picked skills that couldn't actually
     -- craft. Now requires either (a) material in pack OR (b) team has
-    -- material ready (deliverable via Rai). Tool alone isn't enough —
+    -- material ready (deliverable via Rai). Tool alone isn't enough â€”
     -- master can't progress without material to consume.
-    -- 2026-05-29: ingot-skills are always considered trainable — the bot MINES its
+    -- 2026-05-29: ingot-skills are always considered trainable â€” the bot MINES its
     -- own ingots with its (durable) pickaxe. The master/supporter mine-loop supplies
     -- them; if the pickaxe is somehow lost the bot waits for share_tool. No buying.
     if INGOT_SKILLS[skill] then
@@ -141,7 +141,7 @@ local function can_train_skill(skill)
     -- 2026-05-29 FIX: log-skills require logs IN PACK or a HATCHET to chop them.
     -- Do NOT count team_material_count (bank logs): when the squad is tool-starved
     -- the runner can't deliver those, so counting them made the trainee pick a
-    -- log-skill it could never actually supply → permanent stall. Without a hatchet,
+    -- log-skill it could never actually supply â†’ permanent stall. Without a hatchet,
     -- carpentry/fletching are NOT trainable, so pick_target_skill falls through to a
     -- mineable ingot-skill instead of idling on an unsupplyable log-skill.
     if LOG_SKILLS[skill] then
@@ -162,9 +162,9 @@ local function pick_target_skill()
         end
     end
     -- 2026-05-29 fallback: nothing has material. Prefer an INGOT-skill
-    -- (Blacksmith/Tinkering) — the bot MINES its own ore for those (durable
+    -- (Blacksmith/Tinkering) â€” the bot MINES its own ore for those (durable
     -- pickaxe), and the trainee's PickBestRecipe force-logic also mints Pickaxes
-    -- that share_tool hands to supporters → the mining economy keeps flowing. A
+    -- that share_tool hands to supporters â†’ the mining economy keeps flowing. A
     -- log-skill fallback (carpentry/fletching) needs a Hatchet to chop, so prefer
     -- the mineable ingot-skill rather than idling on an unsupplyable log-skill.
     if not highest_skill then
@@ -301,12 +301,12 @@ end
 local function ensure_master_tools()
     -- 2026-05-29: produce SPARE tools for team-sharing too. Was: only craft
     -- if master himself missing. Supporters can be tool-less even when
-    -- master has 1 of each — share_tool needs a spare. Master at sv≥30 TK
-    -- with ≥4 ingots crafts a spare every cycle until packed (cap @ 5).
+    -- master has 1 of each â€” share_tool needs a spare. Master at svâ‰¥30 TK
+    -- with â‰¥4 ingots crafts a spare every cycle until packed (cap @ 5).
     local has_pick = bot.has_pickaxe()
     local has_hat = bot.has_hatchet()
     -- 2026-05-29: prioritize OWN tools first. Was crafting spare pickaxe when
-    -- missing hatchet. Now: missing pickaxe → craft; missing hatchet → craft;
+    -- missing hatchet. Now: missing pickaxe â†’ craft; missing hatchet â†’ craft;
     -- only then spare.
     if (not has_pick) and bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
         bot.log("Master crafting pickaxe (no pickaxe, have ingots)")
@@ -321,7 +321,7 @@ local function ensure_master_tools()
     elseif has_pick and has_hat and bot.count_ingots() >= 8 and bot.get_skill("tinkering") >= 30
        and (bot.state.current_target == "blacksmith" or bot.state.current_target == "tinkering") then
         -- 2026-05-29: spare pickaxe only when target is BS/TK. CP/FL/TL bot
-        -- shouldn't waste ingots on pickaxes — needed for its own CP recipes.
+        -- shouldn't waste ingots on pickaxes â€” needed for its own CP recipes.
         bot.log("Master crafting spare pickaxe for team (ingots=" .. bot.count_ingots() .. ")")
         bot.walk_to("forge")
         make_tool("pickaxe")  -- craft_tool: KEEPS a durable pickaxe (not recycled like craft())
@@ -350,7 +350,7 @@ local function master_tick()
     -- Share spare tools with toolless teammates (bootstrap)
     -- 2026-05-28: throttle to every 12 ticks (~1 min). C# share_tool logs
     -- "no spare" each call when master has no extra, which was spamming
-    -- the focus log every 5-7s. Real sharing opportunities are rare —
+    -- the focus log every 5-7s. Real sharing opportunities are rare â€”
     -- after master crafts pickaxe/hatchet there's a window of N ticks
     -- before they're consumed, 1-min poll catches them.
     if bot.state.master_tick_n % 12 == 0 then
@@ -366,8 +366,8 @@ local function master_tick()
 
     local target_skill, target_val = pick_target_skill()
     if not target_skill then
-        -- All skills at 75 but somehow not L1 yet — keep trying quest
-        bot.log("All craft skills at 75 — walking to Elder for L1")
+        -- All skills at 75 but somehow not L1 yet â€” keep trying quest
+        bot.log("All craft skills at 75 â€” walking to Elder for L1")
         bot.walk_to_point(ELDER_X, ELDER_Y, ELDER_Z)
         wait(3)
         bot.try_levelup()
@@ -399,7 +399,7 @@ local function master_tick()
 
     -- 2026-05-29: tighten threshold to match do_crafting's per-skill minimum.
     -- Was: enter crafting if material >= 3. With sv>=60 (Crossbow needs 7),
-    -- do_crafting would immediately break — burning CPU on no-op loop.
+    -- do_crafting would immediately break â€” burning CPU on no-op loop.
     local target_v = get_skill_value(target_skill)
     local enter_min = 3
     if target_v >= 60 and (INGOT_SKILLS[target_skill] or LOG_SKILLS[target_skill]) then
@@ -407,7 +407,7 @@ local function master_tick()
         enter_min = 4
     end
     if count_material(target_skill) >= enter_min then
-        bot.state.wait_ticks = 0  -- crafting → not stuck
+        bot.state.wait_ticks = 0  -- crafting â†’ not stuck
         do_crafting(target_skill)
     else
         -- 2026-05-28: don't self-gather if Rai is delivering. Master ran
@@ -425,19 +425,19 @@ local function master_tick()
         bot.state.wait_ticks = (bot.state.wait_ticks or 0) + 1
 
         if team_count >= 4 and bot.state.wait_ticks < 30 then
-            -- Rai will deliver. Don't idle — stockpile team tools while
+            -- Rai will deliver. Don't idle â€” stockpile team tools while
             -- waiting. Master TK=75 can mass-produce pickaxes/hatchets
             -- from spare ingots, growing ArmsLore on the side. This kills
-            -- the "tools wear out → bootstrap mining cycle" deadlock by
+            -- the "tools wear out â†’ bootstrap mining cycle" deadlock by
             -- maintaining a tool reserve.
             -- 2026-05-28 productivity upgrade: idle time = production time.
             if bot.state.master_tick_n % 10 == 1 then
-                bot.log(string.format("Need %s: pack empty, team=%d ready — stockpiling tools at forge (wait=%ds)",
+                bot.log(string.format("Need %s: pack empty, team=%d ready â€” stockpiling tools at forge (wait=%ds)",
                     target_skill, team_count, bot.state.wait_ticks * 5))
             end
             bot.walk_to("forge")
             if bot.get_skill("tinkering") >= 30 and bot.count_ingots() >= 4 then
-                -- 2026-05-29 FIX: gate at 4 (ScriptCraftTool needs 4 ingots) — was
+                -- 2026-05-29 FIX: gate at 4 (ScriptCraftTool needs 4 ingots) â€” was
                 -- >=2, which made make_tool a no-op spin at ing 2-3 (never crafts,
                 -- never consumes). Craft tools while waiting. share_tool distributes.
                 -- Alternate pickaxe/hatchet so neither runs out.
@@ -457,13 +457,13 @@ local function master_tick()
             gather_for(target_skill)
         else
             -- 2026-05-29: focus bootstrap. If focus has pickaxe (but missing
-            -- hatchet for log skill, etc.) → mine briefly → ingots → craft
-            -- the missing tool → continue. Mirrors supporter bootstrap.
+            -- hatchet for log skill, etc.) â†’ mine briefly â†’ ingots â†’ craft
+            -- the missing tool â†’ continue. Mirrors supporter bootstrap.
             -- Avoids the "focus waits indefinitely for share_tool that never
             -- comes" deadlock seen with Pembroke.
             if bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
                 if bot.state.master_tick_n % 10 == 1 then
-                    bot.log(string.format("Need %s: no tool — bootstrap mining for ingots", target_skill))
+                    bot.log(string.format("Need %s: no tool â€” bootstrap mining for ingots", target_skill))
                 end
                 bot.walk_to("mine")
                 bot.mine_until(function()
@@ -482,10 +482,10 @@ local function master_tick()
                 -- teammate almost always has a spare). Never buy ingots/cloth.
                 local need = LOG_SKILLS[target_skill] and "hatchet" or "pickaxe"
                 if make_tool(need) then
-                    bot.log(string.format("Need %s: crafted %s from ingots — resuming", target_skill, need))
+                    bot.log(string.format("Need %s: crafted %s from ingots â€” resuming", target_skill, need))
                 else
                     if bot.state.master_tick_n % 10 == 1 then
-                        bot.log(string.format("Need %s: no tool, no ingots — waiting for share_tool (ArmsLore)", target_skill))
+                        bot.log(string.format("Need %s: no tool, no ingots â€” waiting for share_tool (ArmsLore)", target_skill))
                     end
                     bot.walk_to("forge")
                     bot.use_arms_lore()
@@ -553,10 +553,10 @@ end
 
 local function deliver_to_master()
     -- 2026-05-28: supporters NEVER directly deliver to master. The runner
-    -- (Rai) is the sole material courier per operator spec: "Rai должен
-    -- и только он должен доставлять все материалы". Supporters just
+    -- (Rai) is the sole material courier per operator spec: "Rai Ð´Ð¾Ð»Ð¶ÐµÐ½
+    -- Ð¸ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ð¾Ð½ Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð´Ð¾ÑÑ‚Ð°Ð²Ð»ÑÑ‚ÑŒ Ð²ÑÐµ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»Ñ‹". Supporters just
     -- accumulate and signal readiness; Rai polls signals and runs the
-    -- pickup→deliver cycle for everyone.
+    -- pickupâ†’deliver cycle for everyone.
     local need_self_ingots = 0
     if not bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
         need_self_ingots = need_self_ingots + 4
@@ -566,7 +566,7 @@ local function deliver_to_master()
     end
 
     local excess_ingots = bot.count_ingots() - need_self_ingots
-    -- 2026-05-28 operator spec: "минимум 100 за раз" — but supporters with
+    -- 2026-05-28 operator spec: "Ð¼Ð¸Ð½Ð¸Ð¼ÑƒÐ¼ 100 Ð·Ð° Ñ€Ð°Ð·" â€” but supporters with
     -- broken mining (no tool, mine depleted) may never hit 100. Use a
     -- tiered threshold: signal at 50 for bulk-cycle eligibility, runner
     -- still gates on count_bot_material via its own 100/50 check.
@@ -614,7 +614,7 @@ local function supporter_tick()
 
     -- 2026-05-28 operator rule: supporters NEVER gather material the focus
     -- doesn't need. If master trains Tinkering (cur="ingots") and a supporter
-    -- has no pickaxe → wait or self-craft pickaxe, but NEVER chop logs.
+    -- has no pickaxe â†’ wait or self-craft pickaxe, but NEVER chop logs.
     -- Logs would just sit unused in supporter's pack while focus starves.
     if cur == "ingots" then
         if bot.has_pickaxe() then
@@ -629,12 +629,12 @@ local function supporter_tick()
             -- reliable craft_tool API instead of idling forever. No-op until the
             -- restart that registers craft_tool, then this resumes mining.
             if make_tool("pickaxe") then
-                bot.log("Bootstrapped pickaxe by buying ingots — resuming mining")
+                bot.log("Bootstrapped pickaxe by buying ingots â€” resuming mining")
             else
                 -- Wait at forge for share_tool. Do NOT fall through to chopping.
-                -- 2026-05-28: ArmsLore during forced wait — turn idle into +skill.
+                -- 2026-05-28: ArmsLore during forced wait â€” turn idle into +skill.
                 if bot.state.sup_tick_n % 10 == 1 then
-                    bot.log("No pickaxe — waiting at forge (training ArmsLore meanwhile)")
+                    bot.log("No pickaxe â€” waiting at forge (training ArmsLore meanwhile)")
                 end
                 bot.walk_to("forge")
                 bot.use_arms_lore()
@@ -645,12 +645,12 @@ local function supporter_tick()
         if bot.has_hatchet() then
             gather_logs()
         elseif bot.count_ingots() >= 4 and bot.get_skill("tinkering") >= 30 then
-            -- 2026-05-29 FIX: gate at 4 ingots — ScriptCraftTool (the craft_tool
+            -- 2026-05-29 FIX: gate at 4 ingots â€” ScriptCraftTool (the craft_tool
             -- C# path) requires 4 ingots (BotBrainTimer.cs:12271 "need 4 ingots").
             -- The 2026-05-28 change to >=2 (wrongly assuming a 2-ingot hatchet
             -- recipe) made make_tool a SILENT NO-OP at ing 2-3: it never crafted,
             -- never consumed ingots, and blocked the bootstrap-mine fall-through
-            -- below → choppers span "Self-crafting hatchet (ingots=2)" forever,
+            -- below â†’ choppers span "Self-crafting hatchet (ingots=2)" forever,
             -- lost the whole log supply, focus starved. At <4 ingots we now fall
             -- through to the bootstrap-mine branch to top up to 4 first.
             bot.log("Self-crafting hatchet (ingots=" .. bot.count_ingots() .. ")")
@@ -659,7 +659,7 @@ local function supporter_tick()
             wait(2)
         elseif bot.has_pickaxe() and bot.get_skill("tinkering") >= 30 then
             -- 2026-05-28 bootstrap: supporter has pickaxe but no hatchet AND
-            -- no ingots → mine briefly to bootstrap the hatchet. Short
+            -- no ingots â†’ mine briefly to bootstrap the hatchet. Short
             -- session (5 ore) instead of full gather_ore (30 ore) so we
             -- return to tick-top quickly to check ingot count and craft.
             -- Mine-exhausted areas were trapping bots inside the 30-ore
@@ -682,12 +682,12 @@ local function supporter_tick()
             -- 2026-05-29 DEADLOCK ESCAPE: buy ingots + craft a hatchet (reliable
             -- craft_tool path) so the bot can chop, instead of idling forever.
             if make_tool("hatchet") then
-                bot.log("Bootstrapped hatchet by buying ingots — resuming chopping")
+                bot.log("Bootstrapped hatchet by buying ingots â€” resuming chopping")
             else
                 -- True deadlock: no hatchet, no ingots, no pickaxe. Wait for share_tool.
-                -- 2026-05-28: ArmsLore during forced wait — turn idle into +skill.
+                -- 2026-05-28: ArmsLore during forced wait â€” turn idle into +skill.
                 if bot.state.sup_tick_n % 10 == 1 then
-                    bot.log("No hatchet, no pickaxe — waiting (training ArmsLore meanwhile)")
+                    bot.log("No hatchet, no pickaxe â€” waiting (training ArmsLore meanwhile)")
                 end
                 bot.walk_to("forge")
                 bot.use_arms_lore()
@@ -695,10 +695,10 @@ local function supporter_tick()
             end
         end
     else
-        -- cur == "cloth" or unknown — supporters can't meaningfully help
+        -- cur == "cloth" or unknown â€” supporters can't meaningfully help
         -- with cloth pipeline (that's master's quest-based path). Wait.
         if bot.state.sup_tick_n % 10 == 1 then
-            bot.log("Focus needs " .. tostring(cur) .. " — supporter can't help, waiting")
+            bot.log("Focus needs " .. tostring(cur) .. " â€” supporter can't help, waiting")
         end
         bot.walk_to("forge")
         wait(3)
@@ -745,7 +745,7 @@ local function tick()
 end
 
 function main()
-    bot.log("Role-aware squad script loaded — " .. bot.name .. " (role=" .. bot.role() .. ")")
+    bot.log("Role-aware squad script loaded â€” " .. bot.name .. " (role=" .. bot.role() .. ")")
     -- Force role-change handler to re-fire on script load (clears stale signals)
     bot.state.last_role = ""
     while true do

@@ -50,8 +50,20 @@ local function recover_from_stuck()
     bot.state.idle_ticks = 0
     local pos = bot.position()
     if pos.x >= 2505 and pos.x <= 2515 and pos.y >= 535 and pos.y <= 545 then
-        bot.log("Near bank wall — routing via BankStreet north")
+        bot.log("Near bank wall (south) — routing via BankStreet north")
         bot.walk_to_point(2525, 515, 0)
+        wait(3)
+        return
+    end
+    -- 2026-05-29: new stuck zone observed at (2508-2510, 525-535).
+    -- Wall band JUST NORTH of bank, A* targets (2495,535,0) which is
+    -- INSIDE the bank wall (blocked). Route via BankStreet→Forge to
+    -- abandon the bad target altogether.
+    if pos.x >= 2505 and pos.x <= 2515 and pos.y >= 525 and pos.y <= 534 then
+        bot.log("Bank-north wall — abandoning bank, going via BankStreet to Forge")
+        bot.walk_to_point(2525, 515, 0)
+        wait(2)
+        bot.walk_to("forge")
         wait(3)
         return
     end
@@ -63,7 +75,7 @@ local function recover_from_stuck()
         return
     end
     if bot.state.stuck_count % 3 == 0 then
-        wait(10)
+        wait(3)
     else
         local offsets = {{5,0}, {0,5}, {-5,0}, {0,-5}}
         local pick = offsets[(bot.state.stuck_count % 4) + 1]
@@ -107,43 +119,21 @@ local function walk_to_bot_zone(target_index)
     end
 end
 
--- 2026-05-28 tiered threshold:
---   When focus has < 5 of needed material (bootstrap / emergency state):
---     pickup ANY amount > 0 — every unit matters to break the deadlock.
---   Otherwise (focus has supply, just topping up):
---     pickup >= BULK_MIN to avoid courier-cycle thrash.
--- Original 100 created a bootstrap deadlock: Redford eats 14 ingots per
--- GoldEarnings craft, supporters mine ~10/cycle, Rai never sees 100+.
-local BULK_MIN = 30
-local FOCUS_EMERGENCY_THRESHOLD = 5
+-- 2026-05-29: Pembroke had 9 logs, BULK_MIN=10 → off-by-one deadlock.
+-- Master needs 7 logs for Crossbow, lowering threshold to 5 means any
+-- meaningful partial delivery still moves work forward.
+local BULK_MIN = 5
 
 -- One full cycle: pick most-loaded supporter, take materials, deliver to focus.
 local function run_delivery_cycle(material)
     local target = bot.find_supporter_with_most(material)
     if target == nil or target < 0 then return false end
 
-    -- Tiered threshold: emergency mode if focus is starving.
     local available = bot.count_bot_material(target, material) or 0
-    local focus_idx = -1
-    for i = 0, (bot.total_bots() - 1) do
-        if i ~= bot.index then
-            -- focus is the one with role==Focus; we don't have role API on
-            -- per-index, use the focus material signal as proxy.
-        end
-    end
-    -- Use count_bot_material for the focus bot if we can find it.
-    -- Simpler: assume focus is whoever's not us+supporter. Try bot.index 0..3
-    -- to find any non-runner with material. Actually we just check ALL bots
-    -- via the existing focus inference: master_skill signal exists if there's
-    -- an active master, and master is the focus.
-    local effective_threshold = BULK_MIN
-    -- If we have access to focus's current material count via count_bot_material,
-    -- gate emergency mode on that. For simplicity, lowered baseline BULK_MIN to 30
-    -- helps the bootstrap regardless.
-    if available < effective_threshold then
+    if available < BULK_MIN then
         if bot.state.idle_rounds % 10 == 1 then
-            bot.log(string.format("Bot#%d has only %d %s (need %d) — wait for accumulation",
-                target, available, material, effective_threshold))
+            bot.log(string.format("Bot#%d has only %d %s (need %d) — wait",
+                target, available, material, BULK_MIN))
         end
         return false
     end
@@ -198,7 +188,7 @@ local function tick()
         bot.log(string.format("No supporter has %d+ %s for focus — idle at forge", BULK_MIN, m))
     end
     bot.walk_to("forge")
-    wait(4)
+    wait(3)
 end
 
 function main()
