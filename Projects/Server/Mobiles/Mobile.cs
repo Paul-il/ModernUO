@@ -2118,7 +2118,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                 if (Meditating)
                 {
                     Meditating = false;
-                    SendLocalizedMessage(501846); // You are at peace.
+                    SendLocalizedOrResolved(501846); // You are at peace.
                 }
             }
             else if (CanRegenMana)
@@ -7989,7 +7989,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         if (Meditating)
         {
             Meditating = false;
-            SendLocalizedMessage(500134); // You stop meditating.
+            SendLocalizedOrResolved(500134); // You stop meditating.
         }
     }
 
@@ -9077,6 +9077,32 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             affix,
             args
         );
+
+    // ── ZuluHotel localization bridge ───────────────────────────────────────
+    // The client ships only the English cliloc table, so a handful of
+    // engine-emitted player-facing messages (e.g. meditation) leak English when
+    // sent via the raw cliloc packet. ZuluContent installs this resolver in
+    // ZuluLocalization.Configure(); it returns a localized Unicode string for a
+    // cliloc number, or null to fall back to the raw client-side cliloc.
+    public static Func<Mobile, int, string> LocalizedMessageResolver { get; set; }
+
+    // Sends a cliloc through the shard translation map when a resolver is
+    // installed, otherwise falls back to the raw (client-side) localized cliloc.
+    // Core-side mirror of ZuluContent's SendLocalizedOrTranslated extension
+    // (ZuluContent/Zulu/Utilities/ClilocTranslations.cs) — same dictionary, used
+    // here because the engine cannot reference ZuluContent extension methods.
+    public void SendLocalizedOrResolved(int number)
+    {
+        var resolved = LocalizedMessageResolver?.Invoke(this, number);
+        if (resolved != null)
+        {
+            SendMessage(resolved);
+        }
+        else
+        {
+            SendLocalizedMessage(number);
+        }
+    }
 
     public void SendMessage(string text) => SendMessage(0x3B2, text);
 
