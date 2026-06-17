@@ -2,6 +2,7 @@
   {
     "name": "Moongates",
     "type": "GuardedRegion",
+    "guardsDisabled": true,
     "map": "Felucca",
     "priority": 50,
     "rects": [
