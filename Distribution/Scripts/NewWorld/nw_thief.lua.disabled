@@ -1,0 +1,140 @@
+-- nw_thief.lua — NewWorld Thief: cautious stealth engager. COMBAT-ONLY.
+--
+-- Hot-reloaded live. A bound script OWNS the bot — stop the Python runtime ([Bots).
+-- Doctrine: stay hidden between fights (Hiding+Stealth); only commit to an ISOLATED,
+-- weak foe (lift something first if hidden, then melee); break off + flee when
+-- outnumbered or the foe is healthy. Survive via potions/bandage (no Magery).
+--
+-- Round-2 (TODO.md): NW2-TARGETING (pick the weakest threat), NW2-THIEF-FLEE (flee is the
+-- DEFAULT disengage — Hiding fails the instant we're hit, so it's a bonus only in a safe
+-- moment, never the gate that strands us looping under fire).
+--
+-- REQUIRES the NW-DOCTRINE-01 Part B verbs (use_skill / steal / is_hidden / stealth) —
+-- they deploy with the C# build on the next operator restart. Hot-reloading this file
+-- against an OLDER binary will nil-call those verbs; bind it only after the restart.
+
+local HEAL_HP     = 0.5
+local MELEE_RANGE = 1.5
+local FLEE_AWAY   = 6           -- tiles to break off when outnumbered / foe healthy
+
+-- ===== NW2-TARGETING: threat model (thief wants the weakest, isolated foe) =====
+local W_CASTER     = 0          -- the thief avoids casters, doesn't hunt them
+local W_WOUNDED    = 8          -- strongly prefer the low-HP foe (best steal/kill)
+local W_NEAR       = 10
+local W_PROX       = 0.3
+local W_PARALYZED  = 0          -- a paralyzed weak foe is a fine target — neutral
+local W_CONTROLLED = 2
+
+local function sign(d)
+  if d > 0 then return 1 elseif d < 0 then return -1 else return 0 end
+end
+
+local function score_foe(e)
+  if not e then return -1e9 end
+  local s = 0
+  if e.is_casting then s = s + W_CASTER end
+  s = s + (1 - (e.hp_ratio or 1)) * W_WOUNDED
+  s = s + (W_NEAR - (e.dist or W_NEAR)) * W_PROX
+  if e.paralyzed then s = s - W_PARALYZED end
+  if e.is_controlled then s = s - W_CONTROLLED end
+  return s
+end
+
+local function pick_foe(list)
+  local best, bs = nil, -1e9
+  for _, e in ipairs(list) do
+    local sc = score_foe(e)
+    if sc > bs then best, bs = e, sc end
+  end
+  return best
+end
+
+-- Break off AWAY from the foe's real position (a real disengage, not a 1-tile kite).
+local function flee_from(foe)
+  local p = bot.position()
+  local dx, dy = sign(p.x - foe.x), sign(p.y - foe.y)
+  if dx == 0 and dy == 0 then dx = 1 end
+  bot.walk_to(p.x + dx * FLEE_AWAY, p.y + dy * FLEE_AWAY, p.z, 0)
+end
+
+function main()
+  while true do
+    local fail = bot.last_failure_reason()
+    -- NW2-THIEF-FLEE: track HP delta each tick so the disengage branch knows if we're
+    -- being hit right now (Hiding fails under fire — don't bother trying it).
+    local hp_now = bot.hp_ratio()
+    local took_hit = (bot.state.last_hp ~= nil) and (hp_now < bot.state.last_hp - 0.001)
+    bot.state.last_hp = hp_now
+    if not bot.state.home_x then bot.set_home() end
+
+    if bot.is_dead() then
+      bot.resurrect(); wait(2)
+
+    elseif bot.is_bandaging() then
+      wait(1)
+
+    elseif bot.is_paralyzed() then
+      if bot.is_poisoned() and bot.best_cure_strength() >= bot.poison_level() and bot.has_potion("cure") then
+        bot.drink("cure")
+      elseif bot.hp_ratio() < HEAL_HP and bot.has_potion("heal") then
+        bot.drink("heal")
+      else
+        wait(1)
+      end
+
+    elseif bot.is_poisoned() and bot.has_potion("cure") and bot.best_cure_strength() >= bot.poison_level() then
+      bot.drink("cure")
+
+    elseif bot.hp_ratio() < HEAL_HP then
+      if bot.has_potion("heal") then bot.drink("heal")
+      elseif bot.has_bandage() then bot.bandage_self()   -- thieves have no Magery — no cast_self
+      elseif bot.hp_ratio() < 0.30 and bot.state.home_x then
+        bot.set_warmode(false)
+        bot.flee(bot.state.home_x, bot.state.home_y, bot.state.home_z, 1)
+      else
+        wait(1)
+      end
+
+    else
+      local enemies = bot.nearby_enemies(10)
+      local foe = pick_foe(enemies)
+      local n = #enemies
+      if not foe then
+        -- No threats: stay concealed between fights (Hiding, then Stealth to move hidden).
+        bot.set_warmode(false)
+        if not bot.is_hidden() then
+          bot.use_skill("Hiding")
+        else
+          bot.stealth()
+        end
+        wait(1)
+
+      elseif n == 1 and foe.hp_ratio and foe.hp_ratio < 0.5 then
+        -- Isolated, weak foe → commit. Hidden + adjacent: lift something first, else swing.
+        if not bot.warmode() then bot.set_warmode(true) end  -- set_warmode YIELDS (~0.5s pace); only when needed
+        if foe.dist and foe.dist > MELEE_RANGE then
+          bot.walk_to(foe.x, foe.y, foe.z, 1)
+        elseif bot.is_hidden() then
+          bot.steal(foe.serial)                  -- opportunistic pickpocket from concealment
+        else
+          bot.attack(foe.serial)
+        end
+
+      else
+        -- Outnumbered or a healthy foe → DISENGAGE. NW2-THIEF-FLEE: flee is the DEFAULT;
+        -- Hiding is only a bonus in a safe moment (it fails the instant we're hit, so trying
+        -- it under fire just loops while we get pummeled — the old bug).
+        bot.set_warmode(false)
+        if bot.is_hidden() then
+          flee_from(foe)                         -- already vanished → put real distance between us
+        elseif not took_hit and not foe.is_casting then
+          bot.use_skill("Hiding")                -- safe moment (not just hit) → try to vanish
+        else
+          flee_from(foe)                         -- under fire → RUN (don't loop on failing Hiding)
+        end
+      end
+    end
+
+    yield()
+  end
+end
