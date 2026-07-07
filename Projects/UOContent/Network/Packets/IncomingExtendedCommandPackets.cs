@@ -23,7 +23,9 @@ namespace Server.Network;
 
 public static partial class IncomingExtendedCommandPackets
 {
-    private static readonly PacketHandler[] _extendedHandlers = new PacketHandler[0x100];
+    // 0x10000 so extended subcommands above 0xFF (e.g. the Orion client extension 0xFACE)
+    // can register handlers; existing 0x00..0xFF handlers are unaffected.
+    private static readonly PacketHandler[] _extendedHandlers = new PacketHandler[0x10000];
 
     [GeneratedEvent(nameof(SpellbookCastRequestEvent))]
     public static partial void SpellbookCastRequestEvent(Mobile mobile, int spellId, Item item);
@@ -84,18 +86,18 @@ public static partial class IncomingExtendedCommandPackets
         int packetID, bool ingame, bool outgame, delegate*<NetState, SpanReader, void> onReceive
     )
     {
-        if (packetID is >= 0 and < 0x100)
+        if (packetID is >= 0 and < 0x10000)
         {
             _extendedHandlers[packetID] = new PacketHandler(packetID, onReceive, inGameOnly: ingame, outGameOnly: outgame);
         }
     }
 
     public static PacketHandler GetExtendedHandler(int packetID) =>
-        packetID is >= 0 and < 0x100 ? _extendedHandlers[packetID] : null;
+        packetID is >= 0 and < 0x10000 ? _extendedHandlers[packetID] : null;
 
     public static void RemoveExtendedHandler(int packetID)
     {
-        if (packetID is >= 0 and < 0x100)
+        if (packetID is >= 0 and < 0x10000)
         {
             _extendedHandlers[packetID] = null;
         }
