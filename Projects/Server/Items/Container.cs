@@ -283,6 +283,17 @@ public partial class Container : Item
 
     public virtual bool OnDragDropInto(Mobile from, Item item, Point3D p)
     {
+        // Positional drops merge with an existing compatible stack first (same rule as
+        // TryDropItem), so a full container still accepts a stackable that fits an
+        // existing pile. Weight is checked; the item-count check is skipped on merge
+        // because no new slot is consumed.
+        if (TryStackDroppedItem(from, item, false))
+        {
+            from.SendSound(GetDroppedSound(item), GetWorldLocation());
+
+            return true;
+        }
+
         if (!CheckHold(from, item, true, true))
         {
             return false;
@@ -406,6 +417,22 @@ public partial class Container : Item
 
     public virtual bool TryDropItem(Mobile from, Item dropped, bool sendFullMessage, bool playSound)
     {
+        if (TryStackDroppedItem(from, dropped, playSound))
+        {
+            return true;
+        }
+
+        if (CheckHold(from, dropped, sendFullMessage, true))
+        {
+            DropItem(dropped);
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool TryStackDroppedItem(Mobile from, Item dropped, bool playSound)
+    {
         var list = Items;
 
         for (var i = 0; i < list.Count; ++i)
@@ -417,12 +444,6 @@ public partial class Container : Item
             {
                 return true;
             }
-        }
-
-        if (CheckHold(from, dropped, sendFullMessage, true))
-        {
-            DropItem(dropped);
-            return true;
         }
 
         return false;
