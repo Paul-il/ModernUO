@@ -516,7 +516,7 @@ public partial class Container : Item
         {
             if (i < Items.Count)
             {
-                Items[i].SetLastMoved();
+                // MoveToWorld stamps LastMoved itself and registers decay once parent/map are final.
                 Items[i].MoveToWorld(loc, map);
             }
         }
