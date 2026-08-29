@@ -1,4 +1,4 @@
-/*************************************************************************
+﻿/*************************************************************************
  * ModernUO                                                              *
  * Copyright 2019-2026 - ModernUO Development Team                       *
  * Email: hi@modernuo.com                                                *
@@ -1846,8 +1846,22 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     ///     Overridable. Adds the name of this item to the given <see cref="ObjectPropertyList" />. This method should be overridden
     ///     if the item requires a complex naming format.
     /// </summary>
+    // Shard hook: lets ZuluContent supply the OPL name line for ANY item -
+    // including plain Item subclasses (gems, resources, food, decor) that have no
+    // AddNameProperty override of their own and would otherwise fall back to the
+    // client's English-only cliloc table. Returns true when it filled the list.
+    // Core-side mirror of the LocalizedMessageResolver bridge on Mobile: the
+    // engine cannot reference ZuluContent, so the shard installs the delegate in
+    // ZuluLocalization.Configure(). Null resolver = stock ModernUO behaviour.
+    public static Func<Item, IPropertyList, bool> NamePropertyResolver { get; set; }
+
     public virtual void AddNameProperty(IPropertyList list)
     {
+        if (NamePropertyResolver?.Invoke(this, list) == true)
+        {
+            return;
+        }
+
         var name = Name;
 
         if (name == null)
