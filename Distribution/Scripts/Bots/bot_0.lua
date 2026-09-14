@@ -37,7 +37,7 @@ for _, def in ipairs(SKILL_CONFIG) do
 end
 
 local STUCK_THRESHOLD = 5
-local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
+local ELDER_X, ELDER_Y, ELDER_Z = 2512, 546, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
 
 local BRIDGE_WAYPOINTS = {
     {x=2525, y=515, z=0},

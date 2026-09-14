@@ -245,7 +245,7 @@ local function try_craft_any()
     return false
 end
 
-local ELDER_X, ELDER_Y, ELDER_Z = 2517, 529, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
+local ELDER_X, ELDER_Y, ELDER_Z = 2512, 546, 0 -- Минок (владелец отменил перенос №339 в Британию; = NewbieQuestService.ElderX/Y)
 
 local function try_levelup_quest()
     local lvl = bot.class_level()
