@@ -4275,7 +4275,11 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         return true;
     }
 
-    public virtual bool Move(Direction d)
+    public virtual bool Move(Direction d) => Move(d, true);
+
+    // Server-driven movement still uses collision, regions and movement hooks, but
+    // must not acknowledge a walk request the client never sent.
+    protected bool Move(Direction d, bool acknowledge)
     {
         if (Deleted)
         {
@@ -4307,7 +4311,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             newLocation = oldLocation;
         }
 
-        if (m_NetState != null)
+        if (acknowledge && m_NetState != null)
         {
             var cost = ComputeMovementSpeed(d);
             var now = Core.TickCount;
