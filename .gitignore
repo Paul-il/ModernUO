@@ -77,3 +77,8 @@
 /Distribution/Data/objects.json
 /Distribution/Data/shrink.cfg
 /Distribution/Data/timezones.json
+
+# Данные квестов шарда: живая копия, которую читает сервер, а хозяин им
+# репозиторий шарда - там Distribution/Data/Quests лежит в истории. Черновики
+# (Quests/Drafts) не хранит никто: их собирает scripts/build_story_drafts.py.
+/Distribution/Data/Quests/
