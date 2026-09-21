@@ -2,7 +2,7 @@
 //
 // ЭТОТ ФАЙЛ ОБЩИЙ С КЛИЕНТОМ. Копия живёт в
 //   C:\Games\client\TazUO-src\src\ClassicUO.Client\Network\Zulu\Poly1305.cs
-// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_sync.py.
+// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_protocol.py.
 //
 // Poly1305 по RFC 8439, структура donna32 (5 предельных слов по 26 бит).
 // Проверяется векторами из RFC в Poly1305Tests.

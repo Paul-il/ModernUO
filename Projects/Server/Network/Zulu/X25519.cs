@@ -2,7 +2,7 @@
 //
 // ЭТОТ ФАЙЛ ОБЩИЙ С КЛИЕНТОМ. Копия живёт в
 //   C:\Games\client\TazUO-src\src\ClassicUO.Client\Network\Zulu\X25519.cs
-// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_sync.py.
+// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_protocol.py.
 //
 // X25519 по RFC 7748. Порт curve25519-donna-c64: поле в системе счисления 2^51,
 // пять слов, произведения через UInt128. Проверяется векторами RFC в X25519Tests.

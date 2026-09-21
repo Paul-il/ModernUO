@@ -53,5 +53,12 @@
         <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
             <_Parameter1>UOContent.Tests</_Parameter1>
         </AssemblyAttribute>
+        <!-- Тесты шарда. Нужны внутренностям ZHW: разворот поколения (ZhWireTable.Derive)
+             обязан проверяться на ПРОИЗВОЛЬНОМ зерне, а не только на вкомпилированном,
+             и эталоном - иначе перестановка шагов разворота меняет таблицу молча, не
+             трогая номера поколения. Наружу этот метод не публикуется намеренно. -->
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>ZuluContent.Tests</_Parameter1>
+        </AssemblyAttribute>
     </ItemGroup>
 </Project>

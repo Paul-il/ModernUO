@@ -2,7 +2,7 @@
 //
 // ЭТОТ ФАЙЛ ОБЩИЙ С КЛИЕНТОМ. Копия живёт в
 //   C:\Games\client\TazUO-src\src\ClassicUO.Client\Network\Zulu\ChaCha20.cs
-// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_sync.py.
+// и обязана быть байт в байт такой же. Синхронизация: python scripts/wire_protocol.py.
 // Отсюда же запрет на BCL-крипту: веб-клиент собирается под browser-wasm, где
 // System.Security.Cryptography доступна частично. Всё считаем сами.
 //

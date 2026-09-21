@@ -16,8 +16,8 @@ public delegate void ZhRandomFill(Span<byte> buffer);
 /// <para>
 /// Шифр (слой 1) закрывает поток целиком, поэтому перестановка не добавляет секретности -
 /// она добавляет ПРОТУХАНИЕ. Тот, кто один раз вытащил таблицу из клиента, теряет её на
-/// следующем поколении: разовый реверс превращается в подписку на реверс. Сама таблица
-/// живёт в <see cref="ZhWireTable"/>, её печатает scripts/wire_protocol.py.
+/// следующем поколении: разовый реверс превращается в подписку на реверс. Сама таблица в
+/// бинаре не лежит - она разворачивается из зерна поколения, см. ZhWireDerive.cs.
 /// </para>
 /// <para>
 /// ИНВАРИАНТ: отображение применяется РОВНО к первому байту пакета и ровно один раз,
@@ -56,10 +56,10 @@ public static class ZhWire
     public static ZhRandomFill FillRandom { get; set; }
 
     /// <summary>Real packet id to the byte that travels the wire.</summary>
-    public static byte MapOut(byte packetId) => Enabled ? ZhWireTable.Forward[packetId] : packetId;
+    public static byte MapOut(byte packetId) => Enabled ? ZhWireTable.Forward(packetId) : packetId;
 
     /// <summary>Byte off the wire back to the real packet id.</summary>
-    public static byte MapIn(byte wireId) => Enabled ? ZhWireTable.Reverse[wireId] : wireId;
+    public static byte MapIn(byte wireId) => Enabled ? ZhWireTable.Reverse(wireId) : wireId;
 
     internal static void Fill(Span<byte> buffer)
     {
