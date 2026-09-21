@@ -1,5 +1,7 @@
 using System;
 
+using Zulu.Wire;
+
 namespace Server.Network;
 
 /// <summary>
@@ -73,9 +75,26 @@ public static class NetworkCompression
         var inputIdx = 0;
         var outputIdx = 0;
 
+        // Слой 2 ZHW: перестановка опкода обязана лечь ДО хаффмана - после него
+        // отдельного первого байта уже не существует.
+        //
+        // Флаг здесь ГЛОБАЛЬНЫЙ, а не по соединению, и это не небрежность: смешанного
+        // режима у ZHW нет. ZhWire.Enabled ставится один раз из конфига до первого
+        // сокета и им же выбирается начальное состояние разбора в NetState, так что либо
+        // рукопожатие обязательно для всех, либо ни для кого. Единственное соединение без
+        // рукопожатия - опрос списка шардов - до сжатия не доживает.
+        //
+        // Чтение статики вынесено ИЗ цикла: это самый горячий цикл сервера, и проверять
+        // её на каждый байт незачем.
+        var mapHead = ZhWire.Enabled;
+
         while (inputIdx < input.Length)
         {
-            var i = input[inputIdx++] << 1;
+            var value = mapHead && inputIdx == 0 ? ZhWire.MapOut(input[0]) : input[inputIdx];
+
+            inputIdx++;
+
+            var i = value << 1;
 
             bitCount += _huffmanTable[i];
             bitValue = (bitValue << _huffmanTable[i]) | _huffmanTable[i + 1];

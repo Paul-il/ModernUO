@@ -26,6 +26,7 @@ using System.IO;
 using System.Net;
 using System.Network;
 using System.Runtime.CompilerServices;
+using Zulu.Wire;
 
 namespace Server.Network;
 
@@ -60,7 +61,8 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
     private string _disconnectReason = string.Empty;
 
     internal ParserState _parserState = ParserState.AwaitingNextPacket;
-    internal ProtocolState _protocolState = ProtocolState.AwaitingSeed;
+    internal ProtocolState _protocolState =
+        ZhWire.Enabled ? ProtocolState.Zh_AwaitingHello : ProtocolState.AwaitingSeed;
     private bool _packetLogging;
 
     // Managed socket with buffers (handles lifecycle automatically)
@@ -79,6 +81,10 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
 
     internal enum ProtocolState
     {
+        // ZHW: своё рукопожатие до всякого UO. Начальное состояние, пока ZhWire.Enabled.
+        Zh_AwaitingHello,
+        Zh_AwaitingConfirm,
+
         AwaitingSeed, // Based on the way the seed arrives, we know if this is a login server or a game server connection
 
         LoginServer_AwaitingLogin,
@@ -471,6 +477,14 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
             else
             {
                 span.CopyTo(buffer);
+
+                // Слой 2 ZHW для несжатого пути. Сжатый идёт через
+                // NetworkCompression.Compress, где перестановка ложится ДО хаффмана:
+                // после него отдельного первого байта уже не существует.
+                if (ZhOutbound)
+                {
+                    buffer[0] = ZhWire.MapOut(buffer[0]);
+                }
             }
 
             // Then encrypt (if encryption is enabled)
@@ -569,6 +583,15 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
             while (_running && _parserState != ParserState.Error && _protocolState != ProtocolState.Error)
             {
                 var buffer = _socket.RecvBuffer.GetReadSpan();
+
+                // Хвост, приехавший в одном куске с confirm, лежит шифрованным: движок
+                // расшифровывает только то, что пришло ПОСЛЕ установки шифра. Снимаем его
+                // здесь, ровно один раз и до первого разбора.
+                if (_zhPendingInbound)
+                {
+                    ZhStartInbound(buffer);
+                }
+
                 var length = buffer.Length;
 
                 if (length <= 0)
@@ -578,10 +601,25 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
 
                 var packetReader = new SpanReader(buffer);
                 var packetId = packetReader.ReadByte();
+
+                // Слой 2 ZHW: перестановка снимается РОВНО здесь и ровно один раз на
+                // пакет, на границе провода. Всё, что выше - обработчики, таблица длин,
+                // логи - обязано видеть настоящий идентификатор. «Один раз» держит
+                // ZhUnmapHead: разорванный пакет возвращает разбор к тому же байту.
+                if (_zhInbound)
+                {
+                    packetId = ZhUnmapHead(buffer, packetId);
+                }
+
                 var packetLength = length;
 
                 // These can arrive at any time and are only informational
-                if (_protocolState != ProtocolState.AwaitingSeed && IncomingPackets.IsInfoPacket(packetId))
+                // Во время рукопожатия ZHW первый байт - это magic, а не опкод: пустить его
+                // в разбор информационных пакетов значит разобрать мусор.
+                if (_protocolState != ProtocolState.AwaitingSeed
+                    && _protocolState != ProtocolState.Zh_AwaitingHello
+                    && _protocolState != ProtocolState.Zh_AwaitingConfirm
+                    && IncomingPackets.IsInfoPacket(packetId))
                 {
                     _parserState = ParserState.ProcessingPacket;
                     _parserState = HandlePacket(packetReader, packetId, out packetLength);
@@ -590,6 +628,64 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                 {
                     switch (_protocolState)
                     {
+                        case ProtocolState.Zh_AwaitingHello:
+                            {
+                                // Опрос списка шардов обязан работать и без ZHW, иначе шард
+                                // пропадёт из списков. Дальше рукопожатия он всё равно не уедет.
+                                if (packetId == 0xF1)
+                                {
+                                    _parserState = ParserState.ProcessingPacket;
+                                    _parserState = HandlePacket(packetReader, packetId, out packetLength);
+                                    break;
+                                }
+
+                                // 0xEF - сид старого клиента. Magic поколения с него никогда
+                                // не начинается, поэтому старьё опознаётся однозначно и не
+                                // дожидаясь полного hello.
+                                if (packetId == 0xEF)
+                                {
+                                    ZhRejectLegacy();
+                                    return;
+                                }
+
+                                if (length < ZhHandshake.ClientHelloSize)
+                                {
+                                    _parserState = ParserState.AwaitingPartialPacket;
+                                    break;
+                                }
+
+                                if (!ZhAcceptHello(buffer))
+                                {
+                                    Disconnect(string.Empty);
+                                    return;
+                                }
+
+                                packetLength = ZhHandshake.ClientHelloSize;
+                                _parserState = ParserState.AwaitingNextPacket;
+                                _protocolState = ProtocolState.Zh_AwaitingConfirm;
+                                break;
+                            }
+
+                        case ProtocolState.Zh_AwaitingConfirm:
+                            {
+                                if (length < ZhHandshake.ClientConfirmSize)
+                                {
+                                    _parserState = ParserState.AwaitingPartialPacket;
+                                    break;
+                                }
+
+                                if (!ZhAcceptConfirm(buffer))
+                                {
+                                    Disconnect(string.Empty);
+                                    return;
+                                }
+
+                                packetLength = ZhHandshake.ClientConfirmSize;
+                                _parserState = ParserState.AwaitingNextPacket;
+                                _protocolState = ProtocolState.AwaitingSeed;
+                                break;
+                            }
+
                         case ProtocolState.AwaitingSeed:
                             {
                                 if (packetId == 0xEF)
@@ -600,6 +696,14 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                                     {
                                         _protocolState = ProtocolState.LoginServer_AwaitingLogin;
                                     }
+                                }
+                                // Под ZHW голый четырёхбайтовый сид невозможен: клиент шарда
+                                // шлёт только форму 0xEF, а первый байт здесь уже прошёл
+                                // обратную перестановку и сидом больше не является.
+                                else if (_zhInbound)
+                                {
+                                    LogInfo($"ZHW: ожидался сид 0xEF, пришло 0x{packetId:X2}");
+                                    Disconnect(string.Empty);
                                 }
                                 else if (length >= 4)
                                 {
@@ -647,8 +751,11 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                                     break;
                                 }
 
-                                // First byte isn't 0x80 - might be encrypted
-                                if (!EncryptionManager.Enabled)
+                                // First byte isn't 0x80 - might be encrypted.
+                                // Под ZHW поток уже расшифрован нами, значит классического
+                                // шифра тут быть не может: это чужой или сломанный клиент, а
+                                // второй шифр поверх нашего затёр бы сеансовый ключ.
+                                if (_zhInbound || !EncryptionManager.Enabled)
                                 {
                                     LogInfo("Possible encrypted client detected, disconnecting...");
                                     HandleError(packetId, packetLength);
@@ -724,8 +831,10 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
 
                         case ProtocolState.GameServer_AwaitingGameServerLogin:
                             {
-                                // Some clients send 0x80 on game server connection
-                                if (packetId == 0x80 || length == 62)
+                                // Some clients send 0x80 on game server connection.
+                                // Под ZHW опкод уже настоящий, и догадка по длине только
+                                // мешает: гадать не о чем.
+                                if (packetId == 0x80 || !_zhInbound && length == 62)
                                 {
                                     goto case ProtocolState.LoginServer_AwaitingLogin;
                                 }
@@ -750,8 +859,9 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                                     break;
                                 }
 
-                                // First byte isn't 0x91 - might be encrypted
-                                if (!EncryptionManager.Enabled)
+                                // First byte isn't 0x91 - might be encrypted.
+                                // Под ZHW - см. комментарий в LoginServer_AwaitingLogin.
+                                if (_zhInbound || !EncryptionManager.Enabled)
                                 {
                                     HandleError(packetId, packetLength);
                                     return;
@@ -806,6 +916,9 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                 if (_parserState is ParserState.AwaitingNextPacket)
                 {
                     _socket.RecvBuffer.CommitRead(packetLength);
+
+                    // Буфер сдвинулся: следующий первый байт - снова проводной.
+                    _zhHeadMapped = false;
                 }
                 else if (_parserState is ParserState.Throttled)
                 {
