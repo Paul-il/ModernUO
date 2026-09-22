@@ -87,6 +87,10 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
 
         AwaitingSeed, // Based on the way the seed arrives, we know if this is a login server or a game server connection
 
+        // ZHW: форма сида сокеты больше не различает - под рукопожатием оба шлют 0xEF.
+        // Решение отложено ровно на пакет: 0x80 - вход, 0x91 - игровой сервер.
+        Zh_AwaitingLoginOrGameLogin,
+
         LoginServer_AwaitingLogin,
         LoginServer_AwaitingServerSelect,
         LoginServer_ServerSelectAck,
@@ -694,7 +698,13 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                                     _parserState = HandlePacket(packetReader, packetId, out packetLength);
                                     if (_parserState == ParserState.AwaitingNextPacket)
                                     {
-                                        _protocolState = ProtocolState.LoginServer_AwaitingLogin;
+                                        // Без ZHW форма сида сама говорила, какой это сокет:
+                                        // 0xEF - логин-сервер, голые четыре байта - игровой.
+                                        // Под ZHW голой формы нет, значит и различать по сиду
+                                        // больше нечего - ждём первый настоящий пакет.
+                                        _protocolState = _zhInbound
+                                            ? ProtocolState.Zh_AwaitingLoginOrGameLogin
+                                            : ProtocolState.LoginServer_AwaitingLogin;
                                     }
                                 }
                                 // Под ZHW голый четырёхбайтовый сид невозможен: клиент шарда
@@ -727,6 +737,26 @@ public partial class NetState : IComparable<NetState>, IValueLinkListNode<NetSta
                                     Disconnect(string.Empty);
                                 }
                                 break;
+                            }
+
+                        case ProtocolState.Zh_AwaitingLoginOrGameLogin:
+                            {
+                                // Различие, потерянное вместе с формой сида, возвращается здесь:
+                                // логин-сокет начинает с 0x80, игровой - с 0x91. Оба опкода уже
+                                // прошли обратную перестановку, поэтому гадать по длине (как это
+                                // делает открытый протокол) не нужно и нельзя.
+                                if (packetId == 0x80)
+                                {
+                                    goto case ProtocolState.LoginServer_AwaitingLogin;
+                                }
+
+                                if (packetId == 0x91)
+                                {
+                                    goto case ProtocolState.GameServer_AwaitingGameServerLogin;
+                                }
+
+                                HandleError(packetId, packetLength);
+                                return;
                             }
 
                         case ProtocolState.LoginServer_AwaitingLogin:
