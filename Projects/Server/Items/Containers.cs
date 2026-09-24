@@ -20,7 +20,16 @@ public partial class BankBox : Container
         Owner = owner;
     }
 
-    public override int DefaultMaxWeight => 0;
+    // Zuluhotel: the bank is limited by weight, not by the ModernUO 125-item default.
+    public const int MaxBankWeight = 65000;
+
+    // Not a gameplay limit: the container content packet (0x3C) has a ushort length and
+    // 20 bytes per item, so it can list at most (65535 - 5) / 20 = 3276 items.
+    public const int MaxBankItems = 3000;
+
+    public override int DefaultMaxWeight => MaxBankWeight;
+
+    public override int DefaultMaxItems => MaxBankItems;
 
     public override bool IsVirtualItem => true;
 
@@ -51,8 +60,8 @@ public partial class BankBox : Container
                         lang.StartsWith("BEL", System.StringComparison.OrdinalIgnoreCase));
 
             var text = isRu
-                ? $"В банке {TotalItems} предметов, {TotalWeight} камней"
-                : $"Bank container has {TotalItems} items, {TotalWeight} stones";
+                ? $"В банке {TotalItems} предметов, {TotalWeight} из {MaxWeight} камней"
+                : $"Bank container has {TotalItems} items, {TotalWeight} of {MaxWeight} stones";
 
             Owner.PrivateOverheadMessage(
                 MessageType.Regular,

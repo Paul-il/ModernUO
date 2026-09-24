@@ -139,8 +139,10 @@ public partial class Container : Item
     [SerializableFieldDefault(2)]
     private int DropSoundDefaultValue() => -1;
 
+    // Bags inside the bank keep no weight limit of their own: the bank caps the total
+    // (BankBox.MaxBankWeight), and CheckHold walks up to it from any nested bag.
     [CommandProperty(AccessLevel.GameMaster)]
-    public virtual int MaxWeight => Parent is Container { MaxWeight: 0 } ? 0 : DefaultMaxWeight;
+    public virtual int MaxWeight => Parent is BankBox or Container { MaxWeight: 0 } ? 0 : DefaultMaxWeight;
 
     public virtual Rectangle2D Bounds => ContainerData.Bounds;
 
