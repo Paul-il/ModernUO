@@ -3591,6 +3591,29 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
     public bool InLOS(Point3D target) =>
         !Deleted && m_Map != null && (m_AccessLevel > AccessLevel.Player || m_Map.LineOfSight(this, target));
 
+    // Shard hook bypass: speech carries over what Map.LineOfSightBlocker forbids for a shot
+    // (a cemetery fence). Otherwise the same eye-to-eye line as InLOS(Mobile).
+    public bool InHearingLOS(Mobile target)
+    {
+        if (Deleted || m_Map == null)
+        {
+            return false;
+        }
+
+        if (target == this || m_AccessLevel > AccessLevel.Player)
+        {
+            return true;
+        }
+
+        var eye = m_Location;
+        var mouth = target.m_Location;
+
+        eye.Z += 14;
+        mouth.Z += 14;
+
+        return m_Map.LineOfSight(eye, mouth, false);
+    }
+
     public bool AtPoint(int x, int y) => m_Location.m_X == x && m_Location.m_Y == y;
 
     public bool BeginAction<T>() => BeginAction(typeof(T));
@@ -5562,7 +5585,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         {
             foreach (var heard in m_Map.GetMobilesInRange(m_Location, range))
             {
-                if (!heard.CanSee(this) || !NoSpeechLOS && heard.Player && !heard.InLOS(this))
+                if (!heard.CanSee(this) || !NoSpeechLOS && heard.Player && !heard.InHearingLOS(this))
                 {
                     continue;
                 }

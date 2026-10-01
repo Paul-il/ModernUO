@@ -1460,7 +1460,20 @@ public sealed partial class Map : IComparable<Map>, ISpanFormattable, ISpanParsa
         return _invalidSector;
     }
 
-    public bool LineOfSight(Point3D origin, Point3D destination)
+    // Shard hook: lets ZuluContent forbid a sight line that the tile data lets through.
+    // Cemetery fences are 10-12 high and carry no NoShoot flag, and the eye-level path
+    // (z + 14) passes over them, so archers and casters hit what cannot reach them.
+    // Called once per path, before the stock tile and item checks; true = blocked.
+    // The path keeps the stock order (the ends may be swapped), its first and last
+    // points are the two ends. The engine cannot reference ZuluContent, so the shard
+    // installs the delegate in its Configure. Null = stock ModernUO behaviour.
+    public static Func<Map, Point3DList, bool> LineOfSightBlocker { get; set; }
+
+    public bool LineOfSight(Point3D origin, Point3D destination) => LineOfSight(origin, destination, true);
+
+    // shardBlocker = false skips LineOfSightBlocker: hearing uses it, a fence that stops a
+    // shot does not stop a voice (Mobile.InHearingLOS).
+    public bool LineOfSight(Point3D origin, Point3D destination, bool shardBlocker)
     {
         if (this == Internal)
         {
@@ -1535,6 +1548,11 @@ public sealed partial class Map : IComparable<Map>, ISpanFormattable, ISpanParsa
         if (path.Last != destination)
         {
             path.Add(destination);
+        }
+
+        if (shardBlocker && LineOfSightBlocker?.Invoke(this, path) == true)
+        {
+            return false;
         }
 
         var pathCount = path.Count;
