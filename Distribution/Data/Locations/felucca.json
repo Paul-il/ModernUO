@@ -7,13 +7,13 @@
         {
           "name": "Towns",
           "locations": [
-            { "name": "Britain", "location": [1592, 1680, 10] },
+            { "name": "Britain", "location": [1592, 1680, 9] },
             { "name": "Magincia", "location": [3714, 2235, 20] },
             { "name": "Minoc", "location": [2471, 439, 15] },
             { "name": "Moonglow", "location": [4436, 1083, 0] },
             { "name": "Skara Brae", "location": [576, 2200, 0] },
             { "name": "Trinsic", "location": [1914, 2717, 20] },
-            { "name": "Vesper", "location": [2982, 818, 0] },
+            { "name": "Vesper", "location": [2949, 899, 0] },
             { "name": "Yew", "location": [548, 979, 0] }
           ]
         }
@@ -22,7 +22,7 @@
         { "name": "Council of Mages", "location": [3750, 2241, 20] },
         { "name": "Minax", "location": [1172, 2593, 0] },
         { "name": "Shadowlords", "location": [969, 768, 0] },
-        { "name": "True Britannians", "location": [1419, 1622, 20] }
+        { "name": "True Britannians", "location": [1419, 1622, 10] }
       ]
     },
     {
@@ -240,15 +240,15 @@
         {
           "name": "Britain",
           "locations": [
-            { "name": "Blackthorn Castle", "location": [1533, 1415, 56] },
-            { "name": "Blackthorn Entrance", "location": [1523, 1456, 15] },
-            { "name": "British Castle", "location": [1323, 1624, 55] },
-            { "name": "British Entrance", "location": [1401, 1625, 28] },
+            { "name": "Blackthorn Castle", "location": [1533, 1415, 9] },
+            { "name": "Blackthorn Entrance", "location": [1523, 1456, 10] },
+            { "name": "British Castle", "location": [1323, 1624, 9] },
+            { "name": "British Entrance", "location": [1401, 1625, -5] },
             { "name": "Cemetery", "location": [1384, 1497, 10] },
-            { "name": "Center", "location": [1475, 1645, 20] },
+            { "name": "Center", "location": [1527, 1632, 10] },
             { "name": "Farmlands", "location": [1228, 1705, 0] },
-            { "name": "Park", "location": [1614, 1641, 35] },
-            { "name": "Suburbs", "location": [1662, 1572, 5] }
+            { "name": "Park", "location": [1614, 1641, 10] },
+            { "name": "Suburbs", "location": [1662, 1572, 9] }
           ]
         },
         {
@@ -363,8 +363,8 @@
           "name": "Vesper",
           "locations": [
             { "name": "Cemetery", "location": [2786, 867, 0] },
-            { "name": "Center", "location": [2882, 788, 0] },
-            { "name": "Docks", "location": [3013, 828, -3] },
+            { "name": "Center", "location": [2884, 788, 0] },
+            { "name": "Docks", "location": [3013, 826, 0] },
             { "name": "East", "location": [2760, 981, 0] },
             { "name": "North", "location": [2907, 603, 0] }
           ]
