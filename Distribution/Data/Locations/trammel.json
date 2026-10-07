@@ -363,10 +363,18 @@
           ]
         },
         {
-          "name": "Delucia",
+          "name": "Rome",
           "locations": [
-            { "name": "Watch Tower", "location": [5276, 3945, 37] },
             { "name": "Center", "location": [5228, 3978, 37] },
+            { "name": "Colosseum", "location": [5290, 4057, 37] },
+            { "name": "North Gate", "location": [5281, 3936, 37] },
+            { "name": "North Arch", "location": [5251, 3936, 37] },
+            { "name": "West Arch", "location": [5177, 3950, 37] },
+            { "name": "Bank", "location": [5221, 4011, 37] },
+            { "name": "Forum", "location": [5257, 4008, 37] },
+            { "name": "Tiber Island", "location": [5186, 4045, 37] },
+            { "name": "Castle", "location": [5145, 3971, 37] },
+            { "name": "Circus Maximus", "location": [5225, 4075, 37] },
             { "name": "Orc Fort", "location": [5210, 3636, 3] }
           ]
         },
