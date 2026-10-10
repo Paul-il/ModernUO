@@ -85,8 +85,22 @@ public partial class NetState
             return;
         }
 
-        // Initialize IP rate limiter
-        _ipRateLimiter = new IPRateLimiter(10, 10000, 1000, 2.0, 3_600_000, Core.ClosingTokenSource.Token);
+        // Initialize IP rate limiter. Up to 20 game windows share one address and every login
+        // opens two connections (login server, then game server), so the stock 10 attempts
+        // per 10s banned a player for an hour just for opening their windows.
+        var maxAttempts = ServerConfiguration.GetOrUpdateSetting("netstate.connectRateLimit.maxAttempts", 60);
+        var maxBackoff = ServerConfiguration.GetOrUpdateSetting(
+            "netstate.connectRateLimit.maxBackoff",
+            TimeSpan.FromMinutes(5)
+        );
+        _ipRateLimiter = new IPRateLimiter(
+            maxAttempts,
+            10000,
+            1000,
+            2.0,
+            (long)maxBackoff.TotalMilliseconds,
+            Core.ClosingTokenSource.Token
+        );
 
         // Initialize IORingGroup
         var ring = IORingGroup.Create(queueSize: MaxConnections * 2, maxConnections: MaxConnections);

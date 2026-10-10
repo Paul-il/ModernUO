@@ -147,7 +147,7 @@ public class IPRateLimiter
 
             for (var i = 0; i < maxToProcess; i++)
             {
-                if (!_cts.IsCancellationRequested)
+                if (_cts.IsCancellationRequested)
                 {
                     break;
                 }
