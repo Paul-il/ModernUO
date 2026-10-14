@@ -1839,8 +1839,16 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     /// </summary>
     public virtual void SendPropertiesTo(NetState ns)
     {
+        if (PropertiesSender?.Invoke(this, ns) == true)
+        {
+            return;
+        }
+
         ns?.Send(PropertyList.Buffer);
     }
+
+    // Optional content-layer, per-viewer response. Never mutate the shared PropertyList here.
+    public static Func<Item, NetState, bool> PropertiesSender { get; set; }
 
     /// <summary>
     ///     Overridable. Adds the name of this item to the given <see cref="ObjectPropertyList" />. This method should be overridden
