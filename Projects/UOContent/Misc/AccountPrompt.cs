@@ -12,7 +12,8 @@ public static class AccountPrompt
 
     private static readonly bool AutoCreateDefaultOwnerAccount;
     private static readonly string DefaultOwnerAcctName;
-    private static readonly string DefaultOwnerAcctPassword;
+    private const string PasswordKey = "accountPrompt.defaultOwnerAcctPassword";
+    private const string PasswordAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
     private static readonly string DefaultOwnerPlayerName;
 
     static AccountPrompt()
@@ -21,8 +22,7 @@ public static class AccountPrompt
             ServerConfiguration.GetOrUpdateSetting("accountPrompt.autoCreateDefaultOwnerAccount", true);
         DefaultOwnerAcctName =
             ServerConfiguration.GetOrUpdateSetting("accountPrompt.defaultOwnerAcctName", "owner");
-        DefaultOwnerAcctPassword =
-            ServerConfiguration.GetOrUpdateSetting("accountPrompt.defaultOwnerAcctPassword", "owner");
+        // Пароль владельца по умолчанию в коде не задаётся: он генерируется при создании (ResolveDefaultPassword).
         DefaultOwnerPlayerName =
             ServerConfiguration.GetOrUpdateSetting("accountPrompt.defaultOwnerPlayerName", "owner");
     }
@@ -79,7 +79,7 @@ public static class AccountPrompt
 
     private static void CreateDefaultOwnerAccount()
     {
-        var account = new Account(DefaultOwnerAcctName, DefaultOwnerAcctPassword)
+        var account = new Account(DefaultOwnerAcctName, ResolveDefaultPassword())
         {
             AccessLevel = AccessLevel.Owner
         };
@@ -114,10 +114,27 @@ public static class AccountPrompt
         }
 
         logger.Information(
-            "Default owner account created ({Username} / {Password}).",
+            "Default owner account created ({Username}); password stored in {Path}.",
             DefaultOwnerAcctName,
-            DefaultOwnerAcctPassword
+            ServerConfiguration.ConfigurationFilePath
         );
+    }
+
+    // Пароль из конфига годится, если он не пуст и не совпадает ни с именем учётки, ни с именем персонажа.
+    // Иначе генерируется новый и записывается в рантайм-конфиг. В журнал пароль не попадает.
+    private static string ResolveDefaultPassword()
+    {
+        var configured = ServerConfiguration.GetSetting(PasswordKey, (string)null);
+        if (!string.IsNullOrWhiteSpace(configured) &&
+            !string.Equals(configured, DefaultOwnerAcctName, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(configured, DefaultOwnerPlayerName, StringComparison.OrdinalIgnoreCase))
+        {
+            return configured;
+        }
+
+        var password = System.Security.Cryptography.RandomNumberGenerator.GetString(PasswordAlphabet, 24);
+        ServerConfiguration.SetSetting(PasswordKey, password);
+        return password;
     }
 
     private static CityInfo[] TryGetExternalStartingCities()
