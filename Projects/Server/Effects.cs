@@ -74,7 +74,7 @@ public static class Effects
         {
             var buffer = stackalloc byte[OutgoingEffectPackets.SoundPacketLength].InitializePacket();
 
-            foreach (var state in map.GetClientsInRange(p))
+            foreach (var state in map.GetClientsInView(p))
             {
                 state.Mobile.ProcessDelta();
                 OutgoingEffectPackets.CreateSoundEffect(buffer, soundID, p);
@@ -98,7 +98,7 @@ public static class Effects
         var boltEffect = stackalloc byte[OutgoingEffectPackets.BoltEffectLength].InitializePacket();
         var soundEffect = sound ? stackalloc byte[OutgoingEffectPackets.SoundPacketLength].InitializePacket() : null;
 
-        foreach (var state in map.GetClientsInRange(e.Location))
+        foreach (var state in map.GetClientsInView(e.Location))
         {
             if (state.Mobile.CanSee(e))
             {
@@ -165,7 +165,7 @@ public static class Effects
 
         var regular = itemID != 0 ? stackalloc byte[OutgoingEffectPackets.HuedEffectLength].InitializePacket() : null;
 
-        foreach (var state in map.GetClientsInRange(e.Location))
+        foreach (var state in map.GetClientsInView(e.Location))
         {
             state.Mobile.ProcessDelta();
 
@@ -226,7 +226,7 @@ public static class Effects
         var particles = stackalloc byte[OutgoingEffectPackets.ParticleEffectLength].InitializePacket();
         var regular = itemID != 0 ? stackalloc byte[OutgoingEffectPackets.HuedEffectLength].InitializePacket() : null;
 
-        foreach (var state in map.GetClientsInRange(target.Location))
+        foreach (var state in map.GetClientsInView(target.Location))
         {
             state.Mobile.ProcessDelta();
 
@@ -438,7 +438,7 @@ public static class Effects
         var particles = stackalloc byte[OutgoingEffectPackets.ParticleEffectLength].InitializePacket();
         var regular = itemID != 0 ? stackalloc byte[OutgoingEffectPackets.HuedEffectLength].InitializePacket() : null;
 
-        foreach (var state in map.GetClientsInRange(from.Location))
+        foreach (var state in map.GetClientsInView(from.Location))
         {
             state.Mobile.ProcessDelta();
 
@@ -469,7 +469,7 @@ public static class Effects
             return;
         }
 
-        foreach (var state in map.GetClientsInRange(origin))
+        foreach (var state in map.GetClientsInView(origin))
         {
             state.Mobile.ProcessDelta();
             state.Send(effectBuffer);

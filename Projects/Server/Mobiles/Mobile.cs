@@ -2901,7 +2901,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         var hitsPacket = stackalloc byte[OutgoingMobilePackets.MobileAttributePacketLength].InitializePacket();
         mobileMovingCache.InitializePacket();
 
-        foreach (var state in Map.GetClientsInRange(m_Location))
+        foreach (var state in Map.GetClientsInView(m_Location))
         {
             var beholder = state.Mobile;
 
@@ -4373,6 +4373,9 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             using var moveQueue = PooledRefQueue<IEntity>.Create(2048);
             using var moveClientQueue = PooledRefQueue<Mobile>.Create(2048);
 
+            // Zuluhotel WideView: on the island the moving packet reaches farther; OnMovement keeps the stock radius
+            var wide = WideView.IsWide(m_Map, m_Location);
+
             foreach (var mob in m_Map.GetMobilesInRange(m_Location, Core.GlobalMaxUpdateRange))
             {
                 if (mob == this)
@@ -4380,12 +4383,23 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                     continue;
                 }
 
-                if (mob.NetState != null)
+                if (mob.NetState != null && !wide)
                 {
                     moveClientQueue.Enqueue(mob);
                 }
 
                 moveQueue.Enqueue(mob);
+            }
+
+            if (wide)
+            {
+                foreach (var state in m_Map.GetClientsInRange(m_Location, WideView.RangeAt(m_Map, m_Location, Core.GlobalMaxUpdateRange)))
+                {
+                    if (state.Mobile != this)
+                    {
+                        moveClientQueue.Enqueue(state.Mobile);
+                    }
+                }
             }
 
             foreach (var item in m_Map.GetItemsInRange(m_Location, Core.GlobalMaxUpdateRange))
@@ -4408,7 +4422,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                     var m = moveClientQueue.Dequeue();
                     var ns = m.NetState;
 
-                    if (ns != null && Utility.InUpdateRange(m_Location, m.m_Location) && m.CanSee(this))
+                    if (ns != null && WideView.InView(m_Map, m_Location, m.m_Location) && m.CanSee(this))
                     {
                         ns.SendMobileMovingUsingCache(mobileMovingCache, m, this);
                     }
@@ -4835,7 +4849,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             var deathAnimation = stackalloc byte[OutgoingMobilePackets.DeathAnimationPacketLength].InitializePacket();
             var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-            foreach (var state in m_Map.GetClientsInRange(m_Location))
+            foreach (var state in m_Map.GetClientsInView(m_Location))
             {
                 if (state != m_NetState)
                 {
@@ -5125,7 +5139,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                             var buffer = stackalloc byte[OutgoingPlayerPackets.DragEffectPacketLength]
                                 .InitializePacket();
 
-                            foreach (var ns in map.GetClientsInRange(from.Location))
+                            foreach (var ns in map.GetClientsInView(from.Location))
                             {
                                 if (ns.Mobile != from && ns.Mobile.CanSee(from) && ns.Mobile.InLOS(from) &&
                                     ns.Mobile.CanSee(root))
@@ -5284,7 +5298,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingPlayerPackets.DragEffectPacketLength].InitializePacket();
 
-        foreach (var ns in map.GetClientsInRange(m_Location))
+        foreach (var ns in map.GetClientsInView(m_Location))
         {
             if (ns.StygianAbyss || ns.Mobile == this ||
                 !ns.Mobile.CanSee(this) || !ns.Mobile.InLOS(this) || !ns.Mobile.CanSee(root))
@@ -6035,7 +6049,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             return;
         }
 
-        foreach (var ns in map.GetClientsInRange(m_Location))
+        foreach (var ns in map.GetClientsInView(m_Location))
         {
             if (ns.Mobile.CanSee(this))
             {
@@ -6737,7 +6751,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingMobilePackets.MobileAnimationPacketLength].InitializePacket();
 
-        foreach (var state in map.GetClientsInRange(m_Location))
+        foreach (var state in map.GetClientsInView(m_Location))
         {
             if (!state.Mobile.CanSee(this))
             {
@@ -6814,7 +6828,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingEffectPackets.SoundPacketLength].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (state.Mobile.CanSee(this))
             {
@@ -6864,7 +6878,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (state != m_NetState && (everyone || !state.Mobile.CanSee(this)))
             {
@@ -6881,17 +6895,19 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             return;
         }
 
-        foreach (var m in m_Map.GetMobilesInRange(m_Location, Core.GlobalMaxUpdateRange))
+        var reach = WideView.RangeAt(m_Map, m_Location, Core.GlobalMaxUpdateRange);
+
+        foreach (var m in m_Map.GetMobilesInRange(m_Location, reach))
         {
-            if (m != this && Utility.InUpdateRange(m_Location, m.m_Location))
+            if (m != this && WideView.InView(m_Map, m_Location, m.m_Location))
             {
                 m_NetState.SendRemoveEntity(m.Serial);
             }
         }
 
-        foreach (var item in m_Map.GetItemsInRange(m_Location, Core.GlobalMaxUpdateRange))
+        foreach (var item in m_Map.GetItemsInRange(m_Location, reach))
         {
-            if (InRange(item.Location, item.GetUpdateRange(this)))
+            if (InRange(item.Location, WideView.Pair(m_Map, m_Location, item.Location, item.GetUpdateRange(this))))
             {
                 m_NetState.SendRemoveEntity(item.Serial);
             }
@@ -6944,9 +6960,11 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             return;
         }
 
-        foreach (var m in m_Map.GetMobilesInRange(m_Location, Core.GlobalMaxUpdateRange))
+        var reach = WideView.RangeAt(m_Map, m_Location, Core.GlobalMaxUpdateRange);
+
+        foreach (var m in m_Map.GetMobilesInRange(m_Location, reach))
         {
-            if (CanSee(m) && Utility.InUpdateRange(m_Location, m.m_Location))
+            if (CanSee(m) && WideView.InView(m_Map, m_Location, m.m_Location))
             {
                 ns.SendMobileIncoming(this, m);
 
@@ -6965,19 +6983,19 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             }
         }
 
-        foreach (var item in m_Map.GetItemsInRange(m_Location, Core.GlobalMaxUpdateRange))
+        foreach (var item in m_Map.GetItemsInRange(m_Location, reach))
         {
-            if (CanSee(item) && InRange(item.Location, item.GetUpdateRange(this)))
+            if (CanSee(item) && InRange(item.Location, WideView.Pair(m_Map, m_Location, item.Location, item.GetUpdateRange(this))))
             {
                 item.SendInfoTo(ns);
             }
         }
 
         var range = new Rectangle2D(
-            m_Location.X - Core.GlobalMaxUpdateRange,
-            m_Location.Y - Core.GlobalMaxUpdateRange,
-            Core.GlobalMaxUpdateRange * 2 + 1,
-            Core.GlobalMaxUpdateRange * 2 + 1
+            m_Location.X - reach,
+            m_Location.Y - reach,
+            reach * 2 + 1,
+            reach * 2 + 1
         );
 
         foreach (var multi in m_Map.GetMultisInBounds(range))
@@ -7094,7 +7112,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             var m = state.Mobile;
             if (!m.CanSee(this))
@@ -7317,9 +7335,9 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             // First, send a remove message to everyone who can no longer see us. (inOldRange && !inNewRange)
             var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-            foreach (var ns in map.GetClientsInRange(oldLocation))
+            foreach (var ns in map.GetClientsInRange(oldLocation, WideView.RangeAt(map, oldLocation, Core.GlobalMaxUpdateRange)))
             {
-                if (ns != m_NetState && !Utility.InUpdateRange(newLocation, ns.Mobile.Location))
+                if (ns != m_NetState && !WideView.InView(map, newLocation, ns.Mobile.Location))
                 {
                     OutgoingEntityPackets.CreateRemoveEntity(removeEntity, Serial);
                     ns.Send(removeEntity);
@@ -7333,19 +7351,21 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             {
                 // We are attached to a client, so it's a bit more complex. We need to send new items and people to ourself, and ourself to other clients
 
-                foreach (var m in map.GetMobilesInRange(newLocation, Core.GlobalMaxUpdateRange))
+                var reach = WideView.RangeAt(map, newLocation, Core.GlobalMaxUpdateRange);
+
+                foreach (var m in map.GetMobilesInRange(newLocation, reach))
                 {
                     if (m == this)
                     {
                         continue;
                     }
 
-                    if (!Utility.InUpdateRange(newLocation, m.m_Location))
+                    if (!WideView.InView(map, newLocation, m.m_Location))
                     {
                         continue;
                     }
 
-                    var inOldRange = Utility.InUpdateRange(oldLocation, m.m_Location);
+                    var inOldRange = WideView.InView(map, oldLocation, m.m_Location);
                     var ns = m.m_NetState;
 
                     if (ns != null &&
@@ -7388,12 +7408,13 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                     m.SendOPLPacketTo(ourState);
                 }
 
-                foreach (var item in map.GetItemsInRange(newLocation, Core.GlobalMaxUpdateRange))
+                foreach (var item in map.GetItemsInRange(newLocation, reach))
                 {
                     var range = item.GetUpdateRange(this);
                     var loc = item.Location;
 
-                    if (!Utility.InRange(oldLocation, loc, range) && Utility.InRange(newLocation, loc, range) &&
+                    if (!Utility.InRange(oldLocation, loc, WideView.Pair(map, oldLocation, loc, range)) &&
+                        Utility.InRange(newLocation, loc, WideView.Pair(map, newLocation, loc, range)) &&
                         CanSee(item))
                     {
                         item.SendInfoTo(ourState);
@@ -7403,10 +7424,10 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             else
             {
                 // We're not attached to a client, so simply send an Incoming
-                foreach (var ns in map.GetClientsInRange(newLocation))
+                foreach (var ns in map.GetClientsInView(newLocation))
                 {
                     var m = ns.Mobile;
-                    if ((isTeleport && (!ns.HighSeas || !NoMoveHS) || !Utility.InUpdateRange(oldLocation, m.Location)) &&
+                    if ((isTeleport && (!ns.HighSeas || !NoMoveHS) || !WideView.InView(map, oldLocation, m.Location)) &&
                         m.CanSee(this))
                     {
                         ns.SendMobileIncoming(m, this);
@@ -7483,7 +7504,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             return;
         }
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             var m = state.Mobile;
             if (m.CanSee(this))
@@ -8892,7 +8913,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLength(text)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (
                 state.Mobile.AccessLevel >= accessLevel &&
@@ -8932,7 +8953,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLocalizedLength(args)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (state.Mobile.CanSee(this) && (noLineOfSight || state.Mobile.InLOS(this)))
             {
@@ -8972,7 +8993,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLocalizedAffixLength(affix, args)]
             .InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (
                 state.Mobile.AccessLevel >= accessLevel &&
@@ -9030,7 +9051,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLocalizedLength(args)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (state != m_NetState && state.Mobile.CanSee(this))
             {
@@ -9065,7 +9086,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLength(text)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(m_Location))
+        foreach (var state in m_Map.GetClientsInView(m_Location))
         {
             if (state != m_NetState && state.Mobile.CanSee(this))
             {

@@ -359,11 +359,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
                     var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-                    foreach (var state in m_Map.GetClientsInRange(worldLoc, GetMaxUpdateRange()))
+                    foreach (var state in m_Map.GetClientsInRange(worldLoc, WideView.RangeAt(m_Map, worldLoc, GetMaxUpdateRange())))
                     {
                         var m = state.Mobile;
 
-                        if (!m.CanSee(this) && m.InRange(worldLoc, GetUpdateRange(m)))
+                        if (!m.CanSee(this) && m.InRange(worldLoc, WideView.Pair(m.Map, m.Location, worldLoc, GetUpdateRange(m))))
                         {
                             OutgoingEntityPackets.CreateRemoveEntity(removeEntity, Serial);
                             state.Send(removeEntity);
@@ -1159,11 +1159,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
                 var saWorldItem = stackalloc byte[OutgoingEntityPackets.MaxWorldEntityPacketLength].InitializePacket();
                 var hsWorldItem = stackalloc byte[OutgoingEntityPackets.MaxWorldEntityPacketLength].InitializePacket();
 
-                foreach (var state in m_Map.GetClientsInRange(m_Location, GetMaxUpdateRange()))
+                foreach (var state in m_Map.GetClientsInRange(m_Location, WideView.RangeAt(m_Map, m_Location, GetMaxUpdateRange())))
                 {
                     var m = state.Mobile;
 
-                    if (m.CanSee(this) && m.InRange(m_Location, GetUpdateRange(m)))
+                    if (m.CanSee(this) && m.InRange(m_Location, WideView.Pair(m.Map, m.Location, m_Location, GetUpdateRange(m))))
                     {
                         if (state.HighSeas)
                         {
@@ -1212,11 +1212,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
             {
                 var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-                foreach (var state in m_Map.GetClientsInRange(oldLocation, GetMaxUpdateRange()))
+                foreach (var state in m_Map.GetClientsInRange(oldLocation, WideView.RangeAt(m_Map, oldLocation, GetMaxUpdateRange())))
                 {
                     var m = state.Mobile;
 
-                    if (!m.InRange(location, GetUpdateRange(m)))
+                    if (!m.InRange(location, WideView.Pair(m.Map, m.Location, location, GetUpdateRange(m))))
                     {
                         OutgoingEntityPackets.CreateRemoveEntity(removeEntity, Serial);
                         state.Send(removeEntity);
@@ -1229,11 +1229,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
             m_Location = location;
             OnLocationChange(oldRealLocation);
 
-            foreach (var state in m_Map.GetClientsInRange(m_Location, GetMaxUpdateRange()))
+            foreach (var state in m_Map.GetClientsInRange(m_Location, WideView.RangeAt(m_Map, m_Location, GetMaxUpdateRange())))
             {
                 var m = state.Mobile;
 
-                if (m.CanSee(this) && m.InRange(m_Location, GetUpdateRange(m)))
+                if (m.CanSee(this) && m.InRange(m_Location, WideView.Pair(m.Map, m.Location, m_Location, GetUpdateRange(m))))
                 {
                     SendInfoTo(state);
                 }
@@ -1411,11 +1411,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
             return;
         }
 
-        foreach (var state in map.GetClientsInRange(worldLoc, GetMaxUpdateRange()))
+        foreach (var state in map.GetClientsInRange(worldLoc, WideView.RangeAt(map, worldLoc, GetMaxUpdateRange())))
         {
             var m = state.Mobile;
 
-            if (!m.CanSee(this) || !m.InRange(worldLoc, GetUpdateRange(m)))
+            if (!m.CanSee(this) || !m.InRange(worldLoc, WideView.Pair(m.Map, m.Location, worldLoc, GetUpdateRange(m))))
             {
                 continue;
             }
@@ -1559,11 +1559,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
                     {
                         var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-                        foreach (var state in m_Map.GetClientsInRange(oldLocation, GetMaxUpdateRange()))
+                        foreach (var state in m_Map.GetClientsInRange(oldLocation, WideView.RangeAt(m_Map, oldLocation, GetMaxUpdateRange())))
                         {
                             var m = state.Mobile;
 
-                            if (!m.InRange(value, GetUpdateRange(m)))
+                            if (!m.InRange(value, WideView.Pair(m.Map, m.Location, value, GetUpdateRange(m))))
                             {
                                 OutgoingEntityPackets.CreateRemoveEntity(removeEntity, Serial);
                                 state.Send(removeEntity);
@@ -1576,13 +1576,13 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
                     SetLastMoved();
 
-                    foreach (var state in m_Map.GetClientsInRange(m_Location, GetMaxUpdateRange()))
+                    foreach (var state in m_Map.GetClientsInRange(m_Location, WideView.RangeAt(m_Map, m_Location, GetMaxUpdateRange())))
                     {
                         var m = state.Mobile;
 
-                        if (m.CanSee(this) && m.InRange(m_Location, GetUpdateRange(m)) &&
+                        if (m.CanSee(this) && m.InRange(m_Location, WideView.Pair(m.Map, m.Location, m_Location, GetUpdateRange(m))) &&
                             (!state.HighSeas || !NoMoveHS || (m_DeltaFlags & ItemDelta.Update) != 0 ||
-                             !m.InRange(oldLoc, GetUpdateRange(m))))
+                             !m.InRange(oldLoc, WideView.Pair(m.Map, m.Location, oldLoc, GetUpdateRange(m)))))
                         {
                             SendInfoTo(state);
                         }
@@ -3371,11 +3371,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLength(text)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(worldLoc, GetMaxUpdateRange()))
+        foreach (var state in m_Map.GetClientsInRange(worldLoc, WideView.RangeAt(m_Map, worldLoc, GetMaxUpdateRange())))
         {
             var m = state.Mobile;
 
-            if (m.CanSee(this) && m.InRange(worldLoc, GetUpdateRange(m)))
+            if (m.CanSee(this) && m.InRange(worldLoc, WideView.Pair(m.Map, m.Location, worldLoc, GetUpdateRange(m))))
             {
                 var length = OutgoingMessagePackets.CreateMessage(
                     buffer, Serial, m_ItemID, type, hue, 3, ascii, "ENU", Name, text
@@ -3402,11 +3402,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
         var buffer = stackalloc byte[OutgoingMessagePackets.GetMaxMessageLocalizedLength(args)].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(worldLoc, GetMaxUpdateRange()))
+        foreach (var state in m_Map.GetClientsInRange(worldLoc, WideView.RangeAt(m_Map, worldLoc, GetMaxUpdateRange())))
         {
             var m = state.Mobile;
 
-            if (m.CanSee(this) && m.InRange(worldLoc, GetUpdateRange(m)))
+            if (m.CanSee(this) && m.InRange(worldLoc, WideView.Pair(m.Map, m.Location, worldLoc, GetUpdateRange(m))))
             {
                 var length = OutgoingMessagePackets.CreateMessageLocalized(
                     buffer, Serial, m_ItemID, type, hue, 3, number, Name, args
@@ -3896,11 +3896,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
         var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(worldLoc, GetMaxUpdateRange()))
+        foreach (var state in m_Map.GetClientsInRange(worldLoc, WideView.RangeAt(m_Map, worldLoc, GetMaxUpdateRange())))
         {
             var m = state.Mobile;
 
-            if (m.InRange(worldLoc, GetUpdateRange(m)))
+            if (m.InRange(worldLoc, WideView.Pair(m.Map, m.Location, worldLoc, GetUpdateRange(m))))
             {
                 OutgoingEntityPackets.CreateRemoveEntity(removeEntity, Serial);
                 state.Send(removeEntity);
