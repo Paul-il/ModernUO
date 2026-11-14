@@ -250,6 +250,21 @@ public class Gump : BaseGump
 
     public override void Compile(ref SpanWriter writer)
     {
+        // Список строк общий (static) для всех окон. Окно, упавшее посреди сборки, не должно оставить свои строки
+        // следующему: иначе каждое следующее окно переполняет буфер строк (падение сервера 14.11.2026).
+        _stringsList.Clear();
+        try
+        {
+            CompileEntries(ref writer);
+        }
+        finally
+        {
+            _stringsList.Clear();
+        }
+    }
+
+    private void CompileEntries(ref SpanWriter writer)
+    {
         _textEntries = 0;
         _switches = 0;
 
@@ -307,11 +322,6 @@ public class Gump : BaseGump
 
         layoutWriter.Dispose();  // Just in case
         stringsWriter.Dispose(); // Just in case
-
-        if (_stringsList.Count > 0)
-        {
-            _stringsList.Clear();
-        }
     }
 
     protected void Reset()
