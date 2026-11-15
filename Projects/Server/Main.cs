@@ -231,10 +231,81 @@ public static class Core
         }
     }
 
-    public static void Kill(bool restart = false)
+    public static void Kill(bool restart = false) => Kill(restart, false);
+
+    // save: сначала сохранить мир (Ctrl+C). Без него (вайп, «Shutdown (Without Save)») мир на диске остаётся
+    // прежним: остановка без сейва нужна для отката, и одна такая просьба перевешивает просьбу с сейвом.
+    public static void Kill(bool restart, bool save)
     {
+        if (save)
+        {
+            _saveOnKill = true;
+        }
+        else
+        {
+            _noSaveOnKill = true;
+        }
+
         _restartOnKill = restart;
         _performProcessKill = true;
+    }
+
+    // Zuluhotel 2026-11-15: Ctrl+C сначала сохраняет мир, а сейв, запрошенный прямо перед остановом ([SafeRestart,
+    // автообновление, авторестарт), цикл дожидается. Раньше Ctrl+C откатывал всё с последнего автосейва, а сейв перед
+    // остановом вешал сервер: цикл блокировался на записи, снимок для которой сам же должен был снять.
+    // Закрытие окна консоли сюда не идёт намеренно: Windows убивает процесс через ~5 секунд, а сейв, оборванный
+    // между переносом старой папки Saves в бэкап и переносом нового снимка, оставил бы шард без Saves.
+    internal enum ExitStep
+    {
+        // Снимок мира ещё не снят: крутим цикл, он его снимет.
+        AwaitSnapshot,
+        // Пишется старый снимок, а нужен свежий: ждём конца записи, потом сохраняем.
+        AwaitWrite,
+        StartSave,
+        Exit
+    }
+
+    private static bool _saveOnKill;
+    private static bool _noSaveOnKill;
+    private static bool _exitSaveHandled;
+
+    internal static ExitStep NextExitStep(WorldState state, bool saveWanted, bool saveHandled) =>
+        state switch
+        {
+            WorldState.PendingSave or WorldState.Saving                  => ExitStep.AwaitSnapshot,
+            WorldState.WritingSave when saveWanted && !saveHandled       => ExitStep.AwaitWrite,
+            WorldState.Running when saveWanted && !saveHandled           => ExitStep.StartSave,
+            _                                                            => ExitStep.Exit
+        };
+
+    // true - цикл можно покидать: снимок мира снят и записан.
+    private static bool StepExit()
+    {
+        switch (NextExitStep(World.WorldState, _saveOnKill && !_noSaveOnKill, _exitSaveHandled))
+        {
+            case ExitStep.AwaitSnapshot:
+                {
+                    // Снимок будет снят уже после команды - он и есть свежий сейв.
+                    _exitSaveHandled = true;
+                    return false;
+                }
+            case ExitStep.AwaitWrite:
+                {
+                    return false;
+                }
+            case ExitStep.StartSave:
+                {
+                    _exitSaveHandled = true;
+                    logger.Information("Saving the world before shutdown");
+                    World.Save();
+                    return false;
+                }
+            default:
+                {
+                    World.WaitForWriteCompletion();
+                    return true;
+                }
+        }
     }
 
     public static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -289,7 +360,7 @@ public static class Core
 
         logger.Information("Detected {Key} pressed.", keypress);
         e.Cancel = true;
-        Kill();
+        Kill(false, true);
     }
 
     internal static void DoKill(bool restart = false)
@@ -492,9 +563,8 @@ public static class Core
                     _performSnapshot = false;
                 }
 
-                if (_performProcessKill)
+                if (_performProcessKill && StepExit())
                 {
-                    World.WaitForWriteCompletion();
                     break;
                 }
 
