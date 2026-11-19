@@ -1850,6 +1850,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     // Optional content-layer, per-viewer response. Never mutate the shared PropertyList here.
     public static Func<Item, NetState, bool> PropertiesSender { get; set; }
 
+    // Shard hook (Zuluhotel, item origin): called by StackWith after the amounts are added and
+    // BEFORE the dropped item is deleted, as (survivor, absorbed). Must not move, create or delete
+    // items. Null = stock ModernUO behaviour.
+    public static Action<Item, Item> StackMerged { get; set; }
+
     /// <summary>
     ///     Overridable. Adds the name of this item to the given <see cref="ObjectPropertyList" />. This method should be overridden
     ///     if the item requires a complex naming format.
@@ -2367,6 +2372,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
         }
 
         Amount += dropped.Amount;
+        StackMerged?.Invoke(this, dropped);
         dropped.Delete();
 
         if (playSound && from != null)

@@ -941,6 +941,10 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
     public static CreateCorpseHandler CreateCorpseHandler { get; set; }
 
+    // Shard hook (Zuluhotel, item origin): called by LiftItemDupe right after OnAfterDuped, as
+    // (original, newPart). Must not move, create or delete items. Null = stock ModernUO behaviour.
+    public static Action<Item, Item> ItemDuped { get; set; }
+
     public virtual bool RetainPackLocsOnDeath => Core.AOS;
 
     [CommandProperty(AccessLevel.GameMaster)]
@@ -5265,6 +5269,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         item.Map = oldItem.Map;
 
         oldItem.OnAfterDuped(item);
+        ItemDuped?.Invoke(oldItem, item);
 
         if (oldItem.Parent is Mobile parentMobile)
         {
