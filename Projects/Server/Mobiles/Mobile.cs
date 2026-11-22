@@ -945,6 +945,10 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
     // (original, newPart). Must not move, create or delete items. Null = stock ModernUO behaviour.
     public static Action<Item, Item> ItemDuped { get; set; }
 
+    // Shard hook (Zuluhotel, speech ban term): called by the Squelched setter when the value really changes, as
+    // (mobile, newValue). Not called while loading the world. Null = stock ModernUO behaviour.
+    public static Action<Mobile, bool> SquelchedChanged { get; set; }
+
     public virtual bool RetainPackLocsOnDeath => Core.AOS;
 
     [CommandProperty(AccessLevel.GameMaster)]
@@ -973,8 +977,23 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
     public virtual bool ShowVisibleDamage => DefaultShowVisibleDamage;
     public virtual bool CanSeeVisibleDamage => DefaultCanSeeVisibleDamage;
 
+    private bool _squelched;
+
     [CommandProperty(AccessLevel.GameMaster)]
-    public bool Squelched { get; set; }
+    public bool Squelched
+    {
+        get => _squelched;
+        set
+        {
+            if (_squelched == value)
+            {
+                return;
+            }
+
+            _squelched = value;
+            SquelchedChanged?.Invoke(this, value);
+        }
+    }
 
     public virtual bool ShouldCheckStatTimers => true;
 
@@ -6339,7 +6358,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                 }
             case 9:
                 {
-                    Squelched = reader.ReadBool();
+                    _squelched = reader.ReadBool();
 
                     goto case 8;
                 }
