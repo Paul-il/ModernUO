@@ -5628,7 +5628,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                     continue;
                 }
 
-                if (heard.m_NetState != null)
+                if (heard.m_NetState != null && CanSpeechReach(heard))
                 {
                     hears.Add(heard);
                 }
@@ -6937,6 +6937,12 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             }
         }
     }
+
+    /// <summary>
+    /// Zulu: may this phrase reach the client of <paramref name="heard"/>. Only the packet list of DoSpeech asks it;
+    /// OnSpeech handlers (NPCs, items) still get the phrase. Shard content filters muted speech here.
+    /// </summary>
+    public virtual bool CanSpeechReach(Mobile heard) => true;
 
     /// <summary>
     ///     Overridable. Event invoked before the Mobile says something.
