@@ -4850,6 +4850,16 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                 }
             }
 
+            // A normal bag is routed as a whole. Retain protected artifacts nested inside
+            // it through the same moveToPack path, before the bag reaches the corpse.
+            if (Player)
+            {
+                for (var i = 0; i < content.Count; ++i)
+                {
+                    CollectTemporaryBlessedContents(content[i], moveToPack);
+                }
+            }
+
             for (var i = 0; i < moveToPack.Count; ++i)
             {
                 var item = moveToPack[i];
@@ -4890,6 +4900,21 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
         Region.OnDeath(this);
         OnDeath(c);
+    }
+
+    private void CollectTemporaryBlessedContents(Item parent, List<Item> moveToPack)
+    {
+        foreach (var child in parent.Items)
+        {
+            if (child.HasTemporaryBlessing && GetInventoryMoveResultFor(child) != DeathMoveResult.MoveToCorpse)
+            {
+                moveToPack.Add(child);
+            }
+            else
+            {
+                CollectTemporaryBlessedContents(child, moveToPack);
+            }
+        }
     }
 
     /// <summary>

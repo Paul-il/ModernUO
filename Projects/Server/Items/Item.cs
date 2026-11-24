@@ -218,6 +218,46 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     private Point3D m_Location;
     private LootType m_LootType;
+    private DateTime _temporaryBlessedUntil;
+
+    // Only old save records need the content-layer migration. New items never do.
+    public bool NeedsTemporaryBlessingMigration { get; private set; }
+
+    [CommandProperty(AccessLevel.GameMaster, readOnly: true)]
+    public DateTime TemporaryBlessedUntil => _temporaryBlessedUntil;
+
+    public bool HasTemporaryBlessing => _temporaryBlessedUntil > Core.Now;
+
+    // Keep the expired timestamp: it also prevents re-granting the same bonus.
+    public bool TryGrantTemporaryBlessing(DateTime until)
+    {
+        if (Deleted || _temporaryBlessedUntil != default || m_LootType != LootType.Regular ||
+            BlessedFor != null || until <= Core.Now)
+        {
+            return false;
+        }
+
+        _temporaryBlessedUntil = until;
+        this.MarkDirty();
+        InvalidateProperties();
+        return true;
+    }
+
+    public void CompleteTemporaryBlessingMigration()
+    {
+        NeedsTemporaryBlessingMigration = false;
+        this.MarkDirty();
+    }
+
+    // Reflection must not turn the effective Blessed getter into a permanent flag.
+    public void CopyLootProtectionTo(Item destination)
+    {
+        destination.m_LootType = m_LootType;
+        destination._temporaryBlessedUntil = _temporaryBlessedUntil;
+        destination.NeedsTemporaryBlessingMigration = false;
+        destination.MarkDirty();
+        destination.InvalidateProperties();
+    }
     private Map m_Map;
     private IEntity m_Parent; // Mobile, Item, or null=World
 
@@ -308,10 +348,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     /// </summary>
     public virtual bool DisplayWeight => Core.ML && (Movable || IsLockedDown || IsSecure || ItemData.Weight != 255);
 
+    [IgnoreDupe]
     [CommandProperty(AccessLevel.GameMaster)]
     public LootType LootType
     {
-        get => m_LootType;
+        get => HasTemporaryBlessing ? LootType.Blessed : m_LootType;
         set
         {
             if (m_LootType != value)
@@ -851,7 +892,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual void Serialize(IGenericWriter writer)
     {
-        writer.Write(9); // version
+        writer.Write(10); // version: absolute temporary blessing expiry (v9 and older migrate on WorldLoad)
 
         var flags = SaveFlag.None;
 
@@ -901,6 +942,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
         if (m_LootType != LootType.Regular)
         {
             flags |= SaveFlag.LootType;
+        }
+
+        if (_temporaryBlessedUntil != default)
+        {
+            flags |= SaveFlag.TemporaryBlessedUntil;
         }
 
         if (m_ItemID != 0)
@@ -1114,6 +1160,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
         if (GetSaveFlag(flags, SaveFlag.SavedFlags))
         {
             writer.WriteEncodedInt(info.m_SavedFlags);
+        }
+
+        if (GetSaveFlag(flags, SaveFlag.TemporaryBlessedUntil))
+        {
+            writer.Write(_temporaryBlessedUntil);
         }
     }
 
@@ -1937,6 +1988,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     /// </summary>
     public virtual void AddLootTypeProperty(IPropertyList list)
     {
+        // Temporary protection has a viewer-localized countdown in the content OPL sender.
+        // Do not put its changing state in this shared, indefinitely cached property list.
         if (m_LootType == LootType.Blessed)
         {
             list.Add(1038021); // blessed
@@ -2342,11 +2395,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual void LabelLootTypeTo(Mobile to)
     {
-        if (m_LootType == LootType.Blessed)
+        if (LootType == LootType.Blessed)
         {
             LabelTo(to, 1041362); // (blessed)
         }
-        else if (m_LootType == LootType.Cursed)
+        else if (LootType == LootType.Cursed)
         {
             LabelTo(to, "(cursed)");
         }
@@ -2381,6 +2434,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual bool CanStackWith(Item dropped) =>
         dropped.Stackable && Stackable &&
+        dropped._temporaryBlessedUntil == _temporaryBlessedUntil &&
         dropped.GetType() == GetType() &&
         dropped.ItemID == ItemID &&
         dropped.Hue == Hue &&
@@ -2667,6 +2721,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     public virtual void Deserialize(IGenericReader reader)
     {
         var version = reader.ReadInt();
+        NeedsTemporaryBlessingMigration = version < 10;
+        _temporaryBlessedUntil = default;
 
         // Default for versions without a saved value. Stamp only: map and parent are still unread,
         // and PostDeserialize registers every item once its state is final.
@@ -2674,6 +2730,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
         switch (version)
         {
+            case 10:
             case 9:
             case 8:
             case 7:
@@ -2869,6 +2926,11 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
                     if (GetSaveFlag(flags, SaveFlag.SavedFlags))
                     {
                         AcquireCompactInfo().m_SavedFlags = reader.ReadEncodedInt();
+                    }
+
+                    if (version >= 10 && GetSaveFlag(flags, SaveFlag.TemporaryBlessedUntil))
+                    {
+                        _temporaryBlessedUntil = reader.ReadDateTime();
                     }
 
                     if (m_Map != null && m_Parent == null)
@@ -3494,6 +3556,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual void OnAfterDuped(Item newItem)
     {
+        CopyLootProtectionTo(newItem);
     }
 
     // Warning: This uses reflection and is slow!
@@ -3531,6 +3594,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
                 // ignored
             }
         }
+
+        src.CopyLootProtectionTo(dest);
     }
 
     public virtual bool OnDragLift(Mobile from) => true;
@@ -4360,12 +4425,12 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     }
 
     public virtual bool CheckBlessed(Mobile m) =>
-        m_LootType == LootType.Blessed || Mobile.InsuranceEnabled && Insured || m != null && m == BlessedFor;
+        LootType == LootType.Blessed || Mobile.InsuranceEnabled && Insured || m != null && m == BlessedFor;
 
-    public virtual bool CheckNewbied() => m_LootType == LootType.Newbied;
+    public virtual bool CheckNewbied() => LootType == LootType.Newbied;
 
     public virtual bool IsStandardLoot() =>
-        (!Mobile.InsuranceEnabled || !Insured) && BlessedFor == null && m_LootType == LootType.Regular;
+        (!Mobile.InsuranceEnabled || !Insured) && BlessedFor == null && LootType == LootType.Regular;
 
     public override string ToString() => $"{Serial} \"{GetType().Name}\"";
 
@@ -4472,6 +4537,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
         HeldBy = 0x00800000,
         IntWeight = 0x01000000,
         SavedFlags = 0x02000000,
-        NullWeight = 0x04000000
+        NullWeight = 0x04000000,
+        TemporaryBlessedUntil = 0x08000000
     }
 }
