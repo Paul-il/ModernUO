@@ -104,7 +104,7 @@ public class BounceInfo
 {
     public BounceInfo(Item item)
     {
-        Map = item.Map;
+        Map = item.WorldMap;
         Location = item.Location;
         WorldLoc = item.GetWorldLocation();
         Parent = item.Parent;
@@ -574,6 +574,30 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
     }
 
     public bool NoMoveHS { get; set; }
+
+    // A mounted cargo carrier can expose its rider's position without moving its inventory.
+    // RootParent and Map remain the persisted ownership and storage location.
+    public IEntity WorldRoot
+    {
+        get
+        {
+            var root = RootParent;
+            return root is Mobile mobile ? mobile.GetItemWorldRoot(this) : root;
+        }
+    }
+
+    public Map WorldMap
+    {
+        get
+        {
+            if (RootParent is Mobile mobile && mobile.GetItemWorldRoot(this) is { } worldRoot && worldRoot != mobile)
+            {
+                return worldRoot.Map;
+            }
+
+            return m_Map;
+        }
+    }
 
     public virtual int PhysicalResistance => 0;
     public virtual int FireResistance => 0;
@@ -1310,9 +1334,15 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
         SetFlag(ImplFlag.InQueue, false);
         m_DeltaFlags = ItemDelta.None;
 
-        var map = m_Map;
+        var map = WorldMap;
 
         if (map == null || Deleted)
+        {
+            return;
+        }
+
+        // Projected cargo is introduced explicitly when opened. It is not equipment on a visible mobile.
+        if (m_Parent is Mobile carrier && carrier.GetItemWorldRoot(this) != carrier)
         {
             return;
         }
@@ -2109,7 +2139,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
             if (ip.IsAccessibleTo(from)
                 && rpm?.CheckNonlocalDrop(from, this, ip) != false
-                && (!ip.Movable || rpm == from || ip.Map == bounce.Map && root?.Location == bounce.WorldLoc)
+                && (!ip.Movable || ip.WorldRoot == from ||
+                    ip.WorldMap == bounce.Map && ip.WorldRoot?.Location == bounce.WorldLoc)
                )
             {
                 Location = bounce.Location;
@@ -3291,7 +3322,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public void Delta(ItemDelta flags)
     {
-        if (m_Map == null || m_Map == Map.Internal)
+        var map = WorldMap;
+        if (map == null || map == Map.Internal)
         {
             return;
         }
@@ -3548,8 +3580,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual bool OnDroppedOnto(Mobile from, Item target)
     {
-        if (Deleted || from.Deleted || target.Deleted || from.Map != target.Map || from.Map == null ||
-            target.Map == null)
+        if (Deleted || from.Deleted || target.Deleted || from.Map != target.WorldMap || from.Map == null ||
+            target.WorldMap == null)
         {
             return false;
         }
@@ -3585,8 +3617,8 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public virtual bool DropToItem(Mobile from, Item target, Point3D p)
     {
-        if (Deleted || from.Deleted || target.Deleted || from.Map != target.Map || from.Map == null ||
-            target.Map == null)
+        if (Deleted || from.Deleted || target.Deleted || from.Map != target.WorldMap || from.Map == null ||
+            target.WorldMap == null)
         {
             return false;
         }
@@ -3895,14 +3927,15 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public void SendRemovePacket(Point3D worldLoc)
     {
-        if (Deleted || m_Map == null)
+        var map = WorldMap;
+        if (Deleted || map == null)
         {
             return;
         }
 
         var removeEntity = stackalloc byte[OutgoingEntityPackets.RemoveEntityLength].InitializePacket();
 
-        foreach (var state in m_Map.GetClientsInRange(worldLoc, WideView.RangeAt(m_Map, worldLoc, GetMaxUpdateRange())))
+        foreach (var state in map.GetClientsInRange(worldLoc, WideView.RangeAt(map, worldLoc, GetMaxUpdateRange())))
         {
             var m = state.Mobile;
 
@@ -3918,7 +3951,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
 
     public Point3D GetWorldLocation()
     {
-        var root = RootParent;
+        var root = WorldRoot;
 
         if (root == null)
         {
@@ -4091,7 +4124,7 @@ public partial class Item : IHued, IComparable<Item>, ISpawnable, IObjectPropert
             return item.IsAccessibleTo(check);
         }
 
-        var reg = Region.Find(GetWorldLocation(), m_Map);
+        var reg = Region.Find(GetWorldLocation(), WorldMap);
 
         return reg.CheckAccessibility(this, check);
 

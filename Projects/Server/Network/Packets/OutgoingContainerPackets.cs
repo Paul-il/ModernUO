@@ -148,6 +148,17 @@ public static class OutgoingContainerPackets
             parentSerial = Serial.Zero;
         }
 
+        ns.SendContainerContentUpdate(item, parentSerial);
+    }
+
+    // Presentation-only parent, for cargo whose carrier is represented by an equipped mount item.
+    public static void SendContainerContentUpdate(this NetState ns, Item item, Serial parentSerial)
+    {
+        if (ns.CannotSendPackets())
+        {
+            return;
+        }
+
         var writer = new SpanWriter(stackalloc byte[ns.ContainerGridLines ? 21 : 20]);
         writer.Write((byte)0x25); // Packet ID
         writer.Write(item.Serial);

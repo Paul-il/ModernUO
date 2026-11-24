@@ -658,7 +658,7 @@ public partial class Container : Item
         if (Openers != null)
         {
             var worldLoc = GetWorldLocation();
-            var map = Map;
+            var map = WorldMap;
 
             for (var i = 0; i < Openers.Count; ++i)
             {

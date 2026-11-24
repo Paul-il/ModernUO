@@ -870,7 +870,7 @@ public sealed partial class Map : IComparable<Map>, ISpanFormattable, ISpanParsa
         else if (o is Item item)
         {
             // Calculate the height based on the container, not the item inside.
-            var rootParent = item.RootParent;
+            var rootParent = item.WorldRoot;
             if (rootParent != null)
             {
                 p = GetPoint(rootParent, eye);

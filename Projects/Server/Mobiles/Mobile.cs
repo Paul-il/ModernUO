@@ -3608,7 +3608,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
 
     public bool InLOS(object target) =>
         !Deleted && m_Map != null &&
-        (target == this || m_AccessLevel > AccessLevel.Player || target is Item item && item.RootParent == this
+        (target == this || m_AccessLevel > AccessLevel.Player || target is Item item && item.WorldRoot == this
          || m_Map.LineOfSight(this, target));
 
     public bool InLOS(Point3D target) =>
@@ -4977,7 +4977,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         }
         else if (!item.IsAccessibleTo(this))
         {
-            var reg = Region.Find(item.GetWorldLocation(), item.Map);
+            var reg = Region.Find(item.GetWorldLocation(), item.WorldMap);
 
             if (reg?.SendInaccessibleMessage(item, this) != true)
             {
@@ -7197,7 +7197,8 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             return false;
         }
 
-        if (item.Map == Map.Internal)
+        var itemMap = item.WorldMap;
+        if (itemMap == Map.Internal)
         {
             return false;
         }
@@ -7209,7 +7210,7 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
                 return false;
             }
         }
-        else if (item.Parent is Mobile mobile && !CanSee(mobile))
+        else if (item.Parent is Mobile mobile && !CanSee(mobile.GetItemWorldRoot(item)))
         {
             return false;
         }
@@ -7229,8 +7230,11 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
             }
         }
 
-        return !item.Deleted && item.Map == m_Map && (item.Visible || item.CanSeeStaffOnly(this));
+        return !item.Deleted && itemMap == m_Map && (item.Visible || item.CanSeeStaffOnly(this));
     }
+
+    // Interaction coordinates only. Ownership, nonlocal access checks and persistence keep the real root.
+    public virtual Mobile GetItemWorldRoot(Item item) => this;
 
     public virtual bool CanSee(Mobile m)
     {
