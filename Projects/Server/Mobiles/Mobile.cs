@@ -6893,6 +6893,8 @@ public partial class Mobile : IHued, IComparable<Mobile>, ISpawnable, IObjectPro
         {
             ns.SendOPLInfo(this);
         }
+
+        EventSink.InvokeMobilePropertiesSent(ns, this);
     }
 
     public virtual void OnAccessLevelChanged(AccessLevel oldLevel)

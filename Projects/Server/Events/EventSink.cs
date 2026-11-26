@@ -20,6 +20,11 @@ namespace Server;
 
 public static partial class EventSink
 {
+    // Content can accompany a visible mobile update with connection-specific state.
+    public static event Action<NetState, Mobile> MobilePropertiesSent;
+    public static void InvokeMobilePropertiesSent(NetState state, Mobile mobile) =>
+        MobilePropertiesSent?.Invoke(state, mobile);
+
     public static event Action<Mobile> OpenDoorMacroUsed;
     public static void InvokeOpenDoorMacroUsed(Mobile m) => OpenDoorMacroUsed?.Invoke(m);
 
