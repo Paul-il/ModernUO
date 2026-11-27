@@ -177,7 +177,7 @@ public static class OutgoingContainerPackets
         ns.Send(writer.Span);
     }
 
-    public static void SendContainerContent(this NetState ns, Mobile beholder, Item beheld)
+    public static void SendContainerContent(this NetState ns, Mobile beholder, Item beheld, int maximumItems = int.MaxValue)
     {
         if (ns.CannotSendPackets())
         {
@@ -187,13 +187,13 @@ public static class OutgoingContainerPackets
         var items = beheld.Items;
         var count = items.Count;
 
-        var writer = new SpanWriter(stackalloc byte[5 + items.Count * (ns.ContainerGridLines ? 20 : 19)]);
+        var writer = new SpanWriter(stackalloc byte[5 + Math.Min(count, maximumItems) * (ns.ContainerGridLines ? 20 : 19)]);
         writer.Write((byte)0x3C);           // Packet ID
         writer.Seek(4, SeekOrigin.Current); // Length & written count
 
         var written = 0;
 
-        for (var i = 0; i < count; ++i)
+        for (var i = 0; i < count && written < maximumItems; ++i)
         {
             var child = items[i];
 

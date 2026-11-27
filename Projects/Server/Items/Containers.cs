@@ -20,12 +20,9 @@ public partial class BankBox : Container
         Owner = owner;
     }
 
-    // Zuluhotel: the bank is limited by weight, not by the ModernUO 125-item default.
-    public const int MaxBankWeight = 65000;
-
-    // Not a gameplay limit: the container content packet (0x3C) has a ushort length and
-    // 20 bytes per item, so it can list at most (65535 - 5) / 20 = 3276 items.
-    public const int MaxBankItems = 3000;
+    // Большой банк передаётся порциями в BankBox.Content.cs.
+    public const int MaxBankWeight = 650000;
+    public const int MaxBankItems = 30000;
 
     public override int DefaultMaxWeight => MaxBankWeight;
 
@@ -87,6 +84,7 @@ public partial class BankBox : Container
 
     public void Close()
     {
+        CancelContentViews();
         Opened = false;
 
         if (SendDeleteOnClose)

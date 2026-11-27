@@ -636,7 +636,7 @@ public partial class Container : Item
 
             SendContentTo(ns);
 
-            if (ObjectPropertyList.Enabled)
+            if (ObjectPropertyList.Enabled && !BankBox.StreamsContent(this))
             {
                 for (var i = 0; i < Items.Count; ++i)
                 {
@@ -692,7 +692,13 @@ public partial class Container : Item
         }
     }
 
-    public virtual void SendContentTo(NetState state) => state.SendContainerContent(state.Mobile, this);
+    public virtual void SendContentTo(NetState state)
+    {
+        if (!BankBox.TrySendNestedContent(this, state))
+        {
+            state.SendContainerContent(state.Mobile, this);
+        }
+    }
 
     public override void GetProperties(IPropertyList list)
     {
